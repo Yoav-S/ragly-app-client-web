@@ -8,15 +8,13 @@ import {
   type ReactNode,
 } from "react";
 import en from "../locales/en.json";
-import he from "../locales/he.json";
 import ro from "../locales/ro.json";
 import ru from "../locales/ru.json";
 import { LOCALES, type AppLocale } from "./locale";
 
 export { LOCALES, type AppLocale };
 
-const catalogs = { en, ro, ru, he };
-const RTL: readonly AppLocale[] = ["he"];
+const catalogs = { en, ro, ru };
 const COOKIE = "ragly_locale";
 
 type Vars = Record<string, string | number>;
@@ -52,7 +50,7 @@ function translate(locale: AppLocale, key: string, vars?: Vars): string {
 function writeLocaleCookie(locale: AppLocale): void {
   document.cookie = `${COOKIE}=${locale}; Path=/; Max-Age=31536000; SameSite=Lax`;
   document.documentElement.lang = locale;
-  document.documentElement.dir = RTL.includes(locale) ? "rtl" : "ltr";
+  document.documentElement.dir = "ltr";
 }
 
 export function LocaleProvider({
@@ -67,7 +65,7 @@ export function LocaleProvider({
   const value = useMemo<LocaleContextValue>(() => {
     return {
       locale,
-      dir: RTL.includes(locale) ? "rtl" : "ltr",
+      dir: "ltr",
       setLocale: (next) => {
         setLocaleState(next);
         writeLocaleCookie(next);

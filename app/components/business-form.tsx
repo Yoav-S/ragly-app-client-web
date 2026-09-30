@@ -92,12 +92,15 @@ const fieldClass =
 
 export function BusinessForm({
   initial,
+  mode = "owner",
   onSubmitted,
 }: {
   initial?: Business;
+  mode?: "owner" | "admin";
   onSubmitted: (business: Business) => void;
 }) {
   const { t } = useI18n();
+  const [ownerEmail, setOwnerEmail] = useState("");
   const [name, setName] = useState(initial?.name ?? "");
   const [phones, setPhones] = useState(initial?.phones.length ? initial.phones : [""]);
   const [email, setEmail] = useState(initial?.email ?? "");
@@ -122,19 +125,20 @@ export function BusinessForm({
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
 
-  const valid = formIsValid({
-    name,
-    phones,
-    email,
-    city,
-    address,
-    timezone,
-    website,
-    latitude,
-    longitude,
-    alwaysOpen,
-    days,
-  });
+  const valid =
+    formIsValid({
+      name,
+      phones,
+      email,
+      city,
+      address,
+      timezone,
+      website,
+      latitude,
+      longitude,
+      alwaysOpen,
+      days,
+    }) && (mode === "owner" || EMAIL_PATTERN.test(ownerEmail.trim()));
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -146,22 +150,27 @@ export function BusinessForm({
     try {
       const photoUrl = photo ? await uploadBusinessPhoto(photo) : null;
       const token = await user.getIdToken();
-      const created = await apiPost<Business>("/businesses", token, {
-        name: name.trim(),
-        phones: phones.map((phone) => phone.trim()).filter(Boolean),
-        email: email.trim() || null,
-        description: description.trim() || null,
-        category,
-        city: city.trim(),
-        address: address.trim(),
-        timezone: timezone.trim(),
-        opening_hours: hoursFromForm(alwaysOpen, days),
-        website: website.trim() || null,
-        latitude: Number(latitude),
-        longitude: Number(longitude),
-        photo_url: photoUrl,
-        instagram: instagram.trim() || null,
-      });
+      const created = await apiPost<Business>(
+        mode === "admin" ? "/admin/businesses" : "/businesses",
+        token,
+        {
+          ...(mode === "admin" ? { owner_email: ownerEmail.trim().toLowerCase() } : {}),
+          name: name.trim(),
+          phones: phones.map((phone) => phone.trim()).filter(Boolean),
+          email: email.trim() || null,
+          description: description.trim() || null,
+          category,
+          city: city.trim(),
+          address: address.trim(),
+          timezone: timezone.trim(),
+          opening_hours: hoursFromForm(alwaysOpen, days),
+          website: website.trim() || null,
+          latitude: Number(latitude),
+          longitude: Number(longitude),
+          photo_url: photoUrl,
+          instagram: instagram.trim() || null,
+        },
+      );
       onSubmitted(created);
     } catch (err: unknown) {
       setError(errorMessage(err, t));
@@ -170,8 +179,26 @@ export function BusinessForm({
   }
 
   return (
-    <form onSubmit={onSubmit} className="mt-8 grid gap-5" noValidate>
-      <h1 className="text-3xl font-medium text-foreground">{t("business.title")}</h1>
+    <form
+      onSubmit={onSubmit}
+      className={mode === "owner" ? "mt-8 grid gap-5" : "grid gap-5"}
+      noValidate
+    >
+      {mode === "owner" ? (
+        <h1 className="text-3xl font-medium text-foreground">{t("business.title")}</h1>
+      ) : (
+        <label className="block text-sm text-muted">
+          {t("admin.owner_account")}
+          <input
+            className={fieldClass}
+            type="email"
+            value={ownerEmail}
+            required
+            onChange={(event) => setOwnerEmail(event.target.value)}
+          />
+          <span className="mt-2 block text-sm">{t("admin.owner_account_hint")}</span>
+        </label>
+      )}
       <label className="block text-sm text-muted">
         {t("business.name")}
         <input className={fieldClass} value={name} required onChange={(event) => setName(event.target.value)} />
@@ -313,6 +340,7 @@ export function BusinessForm({
           accept="image/*"
           onChange={(event) => setPhoto(event.target.files?.[0] ?? null)}
         />
+        <span className="mt-2 block text-sm">{t("business.photo_hint")}</span>
       </label>
       {error ? (
         <p className="text-sm text-[#EF4444]" role="alert">
@@ -324,7 +352,7 @@ export function BusinessForm({
         disabled={!valid || pending}
         className="inline-flex h-12 items-center justify-center rounded-2xl bg-brand px-5 text-sm font-medium text-white disabled:bg-[#8DB0AA]"
       >
-        {t("business.submit")}
+        {mode === "admin" ? t("admin.publish") : t("business.submit")}
       </button>
     </form>
   );

@@ -24,7 +24,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang={locale}
-      dir={locale === "he" ? "rtl" : "ltr"}
+      dir="ltr"
       className={`${rubik.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">

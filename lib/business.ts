@@ -26,7 +26,7 @@ export type OpeningHours = {
 
 export type Business = {
   id: string;
-  owner_uid: string;
+  owner_uid: string | null;
   owner_email: string;
   name: string;
   phones: string[];
