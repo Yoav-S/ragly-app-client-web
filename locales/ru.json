@@ -171,6 +171,7 @@
     "waiting": "Ожидают",
     "published": "Опубликован",
     "rejected": "Отклонён",
+    "deleted": "Удалённые",
     "suspended": "Скрыт"
   }
 }

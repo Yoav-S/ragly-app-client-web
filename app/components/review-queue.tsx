@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { DAYS, type Business } from "@/lib/business";
 import { useI18n } from "@/lib/i18n";
 
@@ -67,15 +67,29 @@ export function ReviewQueue({
   pending,
   unreadIds,
   busyId,
+  hasMore = false,
+  onLoadMore,
   onDecide,
 }: {
   pending: Business[];
   unreadIds: string[];
   busyId: string;
+  hasMore?: boolean;
+  onLoadMore?: () => void;
   onDecide: (id: string, action: "approve" | "reject", fieldErrors: Record<string, string>) => void;
 }) {
   const { t } = useI18n();
-  const [selectedId, setSelectedId] = useState<string | null>(pending[0]?.id ?? null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const sentinelRef = useRef<HTMLLIElement>(null);
+  useEffect(() => {
+    const node = sentinelRef.current;
+    if (!node || !hasMore || !onLoadMore) return;
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0]?.isIntersecting) onLoadMore();
+    });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [hasMore, onLoadMore, pending.length]);
   const [notes, setNotes] = useState<Record<string, Record<string, string>>>({});
   const selected = pending.find((business) => business.id === selectedId) ?? null;
   const selectedNotes = selected ? notes[selected.id] ?? {} : {};
@@ -111,6 +125,7 @@ export function ReviewQueue({
             </button>
           </li>
         ))}
+        <li ref={sentinelRef} className="h-1" />
       </ul>
       {selected ? (
         <section className="rounded-3xl border border-line bg-surface p-5">

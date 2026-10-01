@@ -71,6 +71,18 @@ export function businessImages(business: { photo: string | null; photos?: string
   return photos;
 }
 
+export type BusinessCounts = {
+  pending: number;
+  published: number;
+  rejected: number;
+  deleted: number;
+};
+
+export type BusinessPage = {
+  items: Business[];
+  has_more: boolean;
+};
+
 export type BusinessSession = {
   is_ragly_admin: boolean;
   business: Business | null;

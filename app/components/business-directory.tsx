@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { BusinessEditor } from "./business-editor";
-import { apiDelete, apiPost } from "@/lib/api";
+import { apiDelete, apiGet, apiPost } from "@/lib/api";
 import { auth } from "@/lib/firebase";
 import { errorMessage } from "@/lib/errors";
 import {
@@ -10,28 +10,26 @@ import {
   businessImages,
   type Business,
   type BusinessCategory,
+  type BusinessPage,
   type Invitation,
 } from "@/lib/business";
 import { useI18n } from "@/lib/i18n";
 
-const CATEGORY_ORDER: BusinessCategory[] = [
-  "veterinarian",
-  "groomer",
-  "pharmacy",
-  "pet_friendly",
-  "pet_store",
-];
-
 type SortKey = "category" | "name" | "city";
 type Ownership = "all" | "owned" | "unowned";
+type StatusFilter = Business["status"] | "all";
 
 export function BusinessDirectory({
-  items,
+  status,
+  onStatusChange,
+  reloadKey,
   onUpdated,
   onInvited,
   onDeleted,
 }: {
-  items: Business[];
+  status: StatusFilter;
+  onStatusChange: (status: StatusFilter) => void;
+  reloadKey: number;
   onUpdated: (business: Business) => void;
   onInvited: (businessId: string, invitation: Invitation) => void;
   onDeleted: (businessId: string) => void;
@@ -40,41 +38,80 @@ export function BusinessDirectory({
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<BusinessCategory | "all">("all");
   const [ownership, setOwnership] = useState<Ownership>("all");
-  const [status, setStatus] = useState<Business["status"] | "all">("published");
   const [sort, setSort] = useState<SortKey>("category");
+  const [items, setItems] = useState<Business[]>([]);
+  const [hasMore, setHasMore] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [listOnly, setListOnly] = useState(false);
+  const skipRef = useRef(0);
+  const loadingRef = useRef(false);
+  const requestRef = useRef(0);
+  const sentinelRef = useRef<HTMLLIElement>(null);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteError, setInviteError] = useState("");
   const [inviteNotice, setInviteNotice] = useState("");
   const [inviting, setInviting] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  const visible = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    const filtered = items.filter((business) => {
-      if (status !== "all" && business.status !== status) return false;
-      if (category !== "all" && business.category !== category) return false;
-      if (ownership === "owned" && !business.owned) return false;
-      if (ownership === "unowned" && business.owned) return false;
-      if (!needle) return true;
-      return [business.name, business.city, business.address]
-        .join(" ")
-        .toLowerCase()
-        .includes(needle);
-    });
-    return filtered.sort((a, b) => {
-      if (sort === "name") return a.name.localeCompare(b.name);
-      if (sort === "city") return a.city.localeCompare(b.city) || a.name.localeCompare(b.name);
-      const categoryDelta =
-        CATEGORY_ORDER.indexOf(a.category) - CATEGORY_ORDER.indexOf(b.category);
-      return categoryDelta || a.name.localeCompare(b.name);
-    });
-  }, [items, query, category, ownership, status, sort]);
-
   const selected = listOnly
     ? null
-    : (visible.find((business) => business.id === selectedId) ?? visible[0] ?? null);
+    : (items.find((business) => business.id === selectedId) ?? items[0] ?? null);
+
+  async function loadPage(reset: boolean) {
+    const user = auth.currentUser;
+    if (!user) return;
+    if (!reset && loadingRef.current) return;
+    const requestId = ++requestRef.current;
+    loadingRef.current = true;
+    setLoading(true);
+    try {
+      const token = await user.getIdToken();
+      const nextSkip = reset ? 0 : skipRef.current;
+      const params = new URLSearchParams({
+        skip: String(nextSkip),
+        limit: "20",
+        sort,
+        ownership,
+      });
+      if (status !== "all") params.set("status", status);
+      if (category !== "all") params.set("category", category);
+      if (query.trim()) params.set("q", query.trim());
+      const page = await apiGet<BusinessPage>(`/admin/businesses/page?${params}`, token);
+      if (requestId !== requestRef.current) return;
+      skipRef.current = nextSkip + page.items.length;
+      setHasMore(page.has_more);
+      setItems((current) => (reset ? page.items : [...current, ...page.items]));
+    } catch (err: unknown) {
+      if (requestId === requestRef.current) setInviteError(errorMessage(err, t));
+    } finally {
+      if (requestId === requestRef.current) {
+        loadingRef.current = false;
+        setLoading(false);
+      }
+    }
+  }
+
+  useEffect(() => {
+    skipRef.current = 0;
+    const handle = window.setTimeout(() => {
+      void loadPage(true);
+    }, query.trim() ? 250 : 0);
+    return () => window.clearTimeout(handle);
+    // loadPage closes over the filters that this effect lists.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, category, ownership, sort, query, reloadKey]);
+
+  useEffect(() => {
+    const node = sentinelRef.current;
+    if (!node || !hasMore) return;
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0]?.isIntersecting) void loadPage(false);
+    });
+    observer.observe(node);
+    return () => observer.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasMore, items.length]);
   const contact = selected?.email || selected?.owner_email || "";
 
   function open(id: string) {
@@ -95,6 +132,7 @@ export function BusinessDirectory({
       const token = await user.getIdToken();
       await apiDelete(`/admin/businesses/${selected.id}`, token);
       onDeleted(selected.id);
+      setItems((current) => current.filter((item) => item.id !== selected.id));
       setSelectedId(null);
     } catch (err: unknown) {
       setInviteError(errorMessage(err, t));
@@ -116,6 +154,13 @@ export function BusinessDirectory({
         `/admin/businesses/${selected.id}/invitations`,
         token,
         { email: inviteEmail.trim().toLowerCase() },
+      );
+      setItems((current) =>
+        current.map((item) =>
+          item.id === selected.id
+            ? { ...item, invitations: [invitation, ...(item.invitations ?? [])] }
+            : item,
+        ),
       );
       onInvited(selected.id, invitation);
       setInviteEmail("");
@@ -153,7 +198,7 @@ export function BusinessDirectory({
             <Select
               label={t("admin.status_filter")}
               value={status}
-              onChange={(value) => setStatus(value as Business["status"] | "all")}
+              onChange={(value) => onStatusChange(value as StatusFilter)}
             >
               <option value="published">{t("admin.published")}</option>
               <option value="all">{t("admin.filter_all")}</option>
@@ -176,11 +221,11 @@ export function BusinessDirectory({
             </Select>
           </div>
         </div>
-        {visible.length === 0 ? (
+        {!loading && items.length === 0 ? (
           <p className="mt-4 text-sm text-muted">{t("admin.directory_empty")}</p>
         ) : (
           <ul className="mt-4 grid gap-2">
-            {visible.map((business) => {
+            {items.map((business) => {
               const active = business.id === selectedId;
               return (
                 <li key={business.id}>
@@ -207,6 +252,7 @@ export function BusinessDirectory({
                 </li>
               );
             })}
+            <li ref={sentinelRef} className="h-1" />
           </ul>
         )}
       </section>
@@ -284,7 +330,16 @@ export function BusinessDirectory({
                 </ul>
               ) : null}
             </form>
-            <BusinessEditor business={selected} scope="admin" onChanged={onUpdated} />
+            <BusinessEditor
+              business={selected}
+              scope="admin"
+              onChanged={(business) => {
+                setItems((current) =>
+                  current.map((item) => (item.id === business.id ? business : item)),
+                );
+                onUpdated(business);
+              }}
+            />
           </div>
         ) : null}
       </section>

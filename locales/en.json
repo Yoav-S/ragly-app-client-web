@@ -171,6 +171,7 @@
     "waiting": "Pending",
     "published": "Published",
     "rejected": "Rejected",
+    "deleted": "Deleted",
     "suspended": "Suspended"
   }
 }
