@@ -15,7 +15,6 @@ import {
 } from "@/lib/business";
 import { useI18n } from "@/lib/i18n";
 
-type SortKey = "category" | "name" | "city";
 type Ownership = "all" | "owned" | "unowned";
 type StatusFilter = Business["status"] | "all";
 
@@ -38,7 +37,6 @@ export function BusinessDirectory({
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<BusinessCategory | "all">("all");
   const [ownership, setOwnership] = useState<Ownership>("all");
-  const [sort, setSort] = useState<SortKey>("category");
   const [items, setItems] = useState<Business[]>([]);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -71,7 +69,7 @@ export function BusinessDirectory({
       const params = new URLSearchParams({
         skip: String(nextSkip),
         limit: "20",
-        sort,
+        sort: "name",
         ownership,
       });
       if (status !== "all") params.set("status", status);
@@ -100,7 +98,7 @@ export function BusinessDirectory({
     return () => window.clearTimeout(handle);
     // loadPage closes over the filters that this effect lists.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, category, ownership, sort, query, reloadKey]);
+  }, [status, category, ownership, query, reloadKey]);
 
   useEffect(() => {
     const node = sentinelRef.current;
@@ -213,11 +211,6 @@ export function BusinessDirectory({
               <option value="all">{t("admin.filter_all")}</option>
               <option value="owned">{t("admin.owned")}</option>
               <option value="unowned">{t("admin.not_owned")}</option>
-            </Select>
-            <Select label={t("admin.sort")} value={sort} onChange={(value) => setSort(value as SortKey)}>
-              <option value="category">{t("admin.sort_category")}</option>
-              <option value="name">{t("admin.sort_name")}</option>
-              <option value="city">{t("admin.sort_city")}</option>
             </Select>
           </div>
         </div>
