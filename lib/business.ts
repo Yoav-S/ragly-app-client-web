@@ -53,13 +53,23 @@ export type Business = {
   website: string | null;
   location: GeoLocation | null;
   photo: string | null;
+  photos: string[];
   owner_uid: string | null;
   owner_email: string | null;
   owned: boolean;
   instagram: string | null;
   rejection_reason: string | null;
+  field_errors: Record<string, string>;
   invitations: Invitation[];
 };
+
+export function businessImages(business: { photo: string | null; photos?: string[] }): string[] {
+  const photos = (business.photos ?? []).filter((url) => url.startsWith("https://"));
+  if (business.photo?.startsWith("https://") && !photos.includes(business.photo)) {
+    return [business.photo, ...photos];
+  }
+  return photos;
+}
 
 export type BusinessSession = {
   is_ragly_admin: boolean;

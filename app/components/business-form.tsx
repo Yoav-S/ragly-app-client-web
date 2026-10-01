@@ -13,7 +13,6 @@ import {
 } from "@/lib/business";
 import { errorMessage } from "@/lib/errors";
 import { useI18n } from "@/lib/i18n";
-import { uploadBusinessPhoto } from "@/lib/storage";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -121,7 +120,6 @@ export function BusinessForm({
     initial?.location ? String(initial.location.coordinates[0]) : "",
   );
   const [instagram, setInstagram] = useState(initial?.instagram ?? "");
-  const [photo, setPhoto] = useState<File | null>(null);
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
 
@@ -148,7 +146,6 @@ export function BusinessForm({
     setPending(true);
     setError("");
     try {
-      const photoUrl = photo ? await uploadBusinessPhoto(photo) : initial?.photo ?? null;
       const token = await user.getIdToken();
       const body = {
         ...(mode === "admin" ? { owner_email: ownerEmail.trim().toLowerCase() } : {}),
@@ -166,7 +163,7 @@ export function BusinessForm({
           type: "Point" as const,
           coordinates: [Number(longitude), Number(latitude)] as [number, number],
         },
-        photo: photoUrl,
+        photo: initial?.photo ?? null,
         instagram: instagram.trim() || null,
       };
       const created =
@@ -343,16 +340,6 @@ export function BusinessForm({
       <label className="block text-sm text-muted">
         {t("business.instagram")} <span>({t("business.optional")})</span>
         <input className={fieldClass} value={instagram} onChange={(event) => setInstagram(event.target.value)} />
-      </label>
-      <label className="block text-sm text-muted">
-        {t("business.photo")} <span>({t("business.optional")})</span>
-        <input
-          className="mt-2 block w-full text-sm"
-          type="file"
-          accept="image/*"
-          onChange={(event) => setPhoto(event.target.files?.[0] ?? null)}
-        />
-        <span className="mt-2 block text-sm">{t("business.photo_hint")}</span>
       </label>
       {error ? (
         <p className="text-sm text-[#EF4444]" role="alert">

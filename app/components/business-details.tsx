@@ -1,23 +1,34 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { DAYS, type Business } from "@/lib/business";
+import { businessImages, DAYS, type Business } from "@/lib/business";
 import { useI18n } from "@/lib/i18n";
 
-export function BusinessDetails({ business }: { business: Business }) {
+export function BusinessDetails({
+  business,
+  showImages = true,
+}: {
+  business: Business;
+  showImages?: boolean;
+}) {
   const { t } = useI18n();
 
   return (
     <div className="grid gap-4">
-      {business.photo?.startsWith("https://") ? (
-        // Remote Firebase download URLs are not known to the image optimizer.
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={business.photo}
-          alt={business.name}
-          className="h-48 w-full rounded-2xl object-cover"
-        />
-      ) : business.photo ? (
+      {showImages && businessImages(business).length > 0 ? (
+        <div className="grid grid-cols-2 gap-3">
+          {businessImages(business).map((url) => (
+            // Remote Firebase download URLs are not known to the image optimizer.
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              key={url}
+              src={url}
+              alt={business.name}
+              className="h-40 w-full rounded-2xl object-cover"
+            />
+          ))}
+        </div>
+      ) : showImages && business.photo ? (
         <p className="text-sm text-muted">
           {t("business.photo")}: {business.photo}
         </p>

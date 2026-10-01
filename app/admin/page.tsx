@@ -7,6 +7,7 @@ import { AccountBar } from "../components/account-bar";
 import { BusinessDetails } from "../components/business-details";
 import { BusinessDirectory } from "../components/business-directory";
 import { BusinessForm } from "../components/business-form";
+import { ReviewQueue } from "../components/review-queue";
 import { apiGet, apiPost } from "@/lib/api";
 import { type Business, type BusinessSession, type Invitation } from "@/lib/business";
 import { errorMessage } from "@/lib/errors";
@@ -29,7 +30,6 @@ export default function AdminPage() {
   const router = useRouter();
   const { t } = useI18n();
   const [items, setItems] = useState<Business[] | null>(null);
-  const [reasons, setReasons] = useState<Record<string, string>>({});
   const [error, setError] = useState("");
   const [busyId, setBusyId] = useState("");
   const [tab, setTab] = useState<"businesses" | "reviews" | "add">("businesses");
@@ -71,10 +71,17 @@ export default function AdminPage() {
     return unsubscribe;
   }, [router, t]);
 
-  async function decide(id: string, action: "approve" | "reject") {
+  async function decide(
+    id: string,
+    action: "approve" | "reject",
+    fieldErrors: Record<string, string>,
+  ) {
     const user = auth.currentUser;
     if (!user) return;
-    if (action === "reject" && !reasons[id]?.trim()) return;
+    const notes = Object.fromEntries(
+      Object.entries(fieldErrors).filter(([, note]) => note.trim()),
+    );
+    if (action === "reject" && Object.keys(notes).length === 0) return;
     setBusyId(id);
     setError("");
     try {
@@ -82,7 +89,7 @@ export default function AdminPage() {
       const updated = await apiPost<Business>(
         `/admin/businesses/${id}/${action}`,
         token,
-        action === "reject" ? { reason: reasons[id].trim() } : {},
+        action === "reject" ? { field_errors: notes } : {},
       );
       setItems((current) =>
         (current ?? []).map((item) => (item.id === id ? updated : item)),
@@ -184,51 +191,14 @@ export default function AdminPage() {
         </section>
       ) : (
         <div className="mt-6 grid gap-5">
-          <section className="rounded-3xl bg-[#EEF3F2] p-5">
+          <section>
             <h2 className="text-lg font-medium text-foreground">{t("admin.pending_review")}</h2>
-            {items && pending.length === 0 ? (
-              <p className="mt-4 text-sm text-muted">{t("admin.empty_pending")}</p>
-            ) : null}
-            <div className="mt-4 grid gap-4">
-              {pending.map((business) => (
-                <article key={business.id} className="rounded-2xl border border-line bg-surface p-5">
-                  {unread.some((item) => item.id === business.id) ? (
-                    <p className="mb-3 inline-flex rounded-full bg-[#EEF3F2] px-3 py-1 text-xs font-medium text-brand">
-                      {t("admin.new")}
-                    </p>
-                  ) : null}
-                  <BusinessDetails business={business} />
-                  <label className="mt-5 block text-sm text-muted">
-                    {t("admin.reason")}
-                    <textarea
-                      className="mt-2 min-h-24 w-full rounded-2xl border border-line bg-background px-4 py-3 text-sm text-foreground outline-none focus:border-brand"
-                      value={reasons[business.id] ?? ""}
-                      onChange={(event) =>
-                        setReasons({ ...reasons, [business.id]: event.target.value })
-                      }
-                    />
-                  </label>
-                  <div className="mt-4 flex flex-col gap-3 sm:flex-row">
-                    <button
-                      type="button"
-                      disabled={busyId === business.id}
-                      onClick={() => decide(business.id, "approve")}
-                      className="inline-flex h-12 items-center justify-center rounded-2xl bg-brand px-5 text-sm font-medium text-white disabled:bg-[#8DB0AA]"
-                    >
-                      {t("admin.approve")}
-                    </button>
-                    <button
-                      type="button"
-                      disabled={busyId === business.id || !reasons[business.id]?.trim()}
-                      onClick={() => decide(business.id, "reject")}
-                      className="inline-flex h-12 items-center justify-center rounded-2xl border border-line px-5 text-sm font-medium text-foreground disabled:text-muted"
-                    >
-                      {t("admin.reject")}
-                    </button>
-                  </div>
-                </article>
-              ))}
-            </div>
+            <ReviewQueue
+              pending={pending}
+              unreadIds={unread.map((item) => item.id)}
+              busyId={busyId}
+              onDecide={(id, action, fieldErrors) => void decide(id, action, fieldErrors)}
+            />
           </section>
           <section className="rounded-3xl border border-line bg-surface p-5">
             <h2 className="text-lg font-medium text-foreground">{t("admin.recent")}</h2>

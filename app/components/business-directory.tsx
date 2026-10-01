@@ -3,11 +3,13 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { BusinessDetails } from "./business-details";
 import { BusinessForm } from "./business-form";
+import { BusinessPhotos } from "./business-photos";
 import { apiDelete, apiPost } from "@/lib/api";
 import { auth } from "@/lib/firebase";
 import { errorMessage } from "@/lib/errors";
 import {
   CATEGORIES,
+  businessImages,
   type Business,
   type BusinessCategory,
   type Invitation,
@@ -40,6 +42,7 @@ export function BusinessDirectory({
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<BusinessCategory | "all">("all");
   const [ownership, setOwnership] = useState<Ownership>("all");
+  const [status, setStatus] = useState<Business["status"] | "all">("published");
   const [sort, setSort] = useState<SortKey>("category");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
@@ -52,6 +55,7 @@ export function BusinessDirectory({
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
     const filtered = items.filter((business) => {
+      if (status !== "all" && business.status !== status) return false;
       if (category !== "all" && business.category !== category) return false;
       if (ownership === "owned" && !business.owned) return false;
       if (ownership === "unowned" && business.owned) return false;
@@ -68,7 +72,7 @@ export function BusinessDirectory({
         CATEGORY_ORDER.indexOf(a.category) - CATEGORY_ORDER.indexOf(b.category);
       return categoryDelta || a.name.localeCompare(b.name);
     });
-  }, [items, query, category, ownership, sort]);
+  }, [items, query, category, ownership, status, sort]);
 
   const selected = items.find((business) => business.id === selectedId) ?? null;
   const contact = selected?.email || selected?.owner_email || "";
@@ -133,7 +137,7 @@ export function BusinessDirectory({
             placeholder={t("admin.search")}
             className="h-11 w-full rounded-2xl border border-line bg-surface px-4 text-sm text-foreground outline-none focus:border-brand"
           />
-          <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
             <Select
               label={t("business.category")}
               value={category}
@@ -145,6 +149,16 @@ export function BusinessDirectory({
                   {t(`business.${item}`)}
                 </option>
               ))}
+            </Select>
+            <Select
+              label={t("admin.status_filter")}
+              value={status}
+              onChange={(value) => setStatus(value as Business["status"] | "all")}
+            >
+              <option value="published">{t("admin.published")}</option>
+              <option value="all">{t("admin.filter_all")}</option>
+              <option value="pending_review">{t("admin.pending_review")}</option>
+              <option value="rejected">{t("admin.rejected")}</option>
             </Select>
             <Select
               label={t("admin.owner")}
@@ -175,17 +189,20 @@ export function BusinessDirectory({
                     onClick={() => open(business.id)}
                     className={
                       active
-                        ? "w-full rounded-2xl border border-brand bg-surface px-4 py-3 text-start"
-                        : "w-full rounded-2xl border border-line bg-surface px-4 py-3 text-start hover:border-brand"
+                        ? "flex w-full items-center gap-3 rounded-2xl border border-brand bg-surface px-4 py-3 text-start"
+                        : "flex w-full items-center gap-3 rounded-2xl border border-line bg-surface px-4 py-3 text-start hover:border-brand"
                     }
                   >
-                    <span className="block text-sm font-medium text-foreground">{business.name}</span>
-                    <span className="mt-1 block text-sm text-muted">
-                      {t(`business.${business.category}`)} · {business.city}
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-medium text-foreground">{business.name}</span>
+                      <span className="mt-1 block text-sm text-muted">
+                        {t(`business.${business.category}`)} · {business.city}
+                      </span>
+                      <span className="mt-2 inline-flex rounded-full bg-[#EEF3F2] px-2 py-0.5 text-xs font-medium text-brand">
+                        {business.owned ? t("admin.owned") : t("admin.not_owned")}
+                      </span>
                     </span>
-                    <span className="mt-2 inline-flex rounded-full bg-[#EEF3F2] px-2 py-0.5 text-xs font-medium text-brand">
-                      {business.owned ? t("admin.owned") : t("admin.not_owned")}
-                    </span>
+                    <ListingImage business={business} />
                   </button>
                 </li>
               );
@@ -281,6 +298,11 @@ export function BusinessDirectory({
                 </ul>
               ) : null}
             </form>
+            <BusinessPhotos
+              business={selected}
+              scope="admin"
+              onChanged={onUpdated}
+            />
             {editing ? (
               <div className="mt-6">
                 <BusinessForm
@@ -295,7 +317,7 @@ export function BusinessDirectory({
               </div>
             ) : (
               <div className="mt-6">
-                <BusinessDetails business={selected} />
+                <BusinessDetails business={selected} showImages={false} />
               </div>
             )}
           </div>
@@ -304,6 +326,18 @@ export function BusinessDirectory({
         )}
       </section>
     </div>
+  );
+}
+
+function ListingImage({ business }: { business: Business }) {
+  const image = businessImages(business)[0];
+  if (!image) {
+    return <span className="h-16 w-16 shrink-0 rounded-xl bg-background" />;
+  }
+  return (
+    // Firebase download URLs are not known to the image optimizer.
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={image} alt="" className="h-16 w-16 shrink-0 rounded-xl object-cover" />
   );
 }
 

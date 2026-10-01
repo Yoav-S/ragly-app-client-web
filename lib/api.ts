@@ -56,7 +56,7 @@ async function request<T>(
   token?: string,
 ): Promise<T> {
   const headers = new Headers(init.headers);
-  if (init.body) {
+  if (typeof init.body === "string") {
     headers.set("Content-Type", "application/json");
   }
   if (token) {
@@ -88,6 +88,16 @@ export function apiPatch<T>(path: string, token: string, body: unknown): Promise
 
 export function apiDelete(path: string, token: string): Promise<void> {
   return request<void>(path, { method: "DELETE" }, token);
+}
+
+export function apiUpload<T>(path: string, token: string, file: File): Promise<T> {
+  const body = new FormData();
+  body.append("file", file);
+  return request<T>(path, { method: "POST", body }, token);
+}
+
+export function apiDeleteJson<T>(path: string, token: string, body: unknown): Promise<T> {
+  return request<T>(path, { method: "DELETE", body: JSON.stringify(body) }, token);
 }
 
 export type UserProfile = {
