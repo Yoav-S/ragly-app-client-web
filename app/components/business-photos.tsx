@@ -25,9 +25,9 @@ export function BusinessPhotos({
       ? `/admin/businesses/${business.id}/photos`
       : `/businesses/${business.id}/photos`;
 
-  async function addPhotos(files: FileList | null) {
+  async function addPhotos(files: File[]) {
     const user = auth.currentUser;
-    if (!user || !files?.length || pending) return;
+    if (!user || files.length === 0 || pending) return;
     setPending(true);
     setError("");
     try {
@@ -61,10 +61,8 @@ export function BusinessPhotos({
   }
 
   return (
-    <section className="mt-6">
-      <h3 className="text-sm font-medium text-foreground">{t("business.photos")}</h3>
-      <p className="mt-1 text-sm text-muted">{t("business.photos_hint")}</p>
-      <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+    <section>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         {images.map((url) => (
           <div key={url} className="relative">
             {/* Firebase download URLs are not known to the image optimizer. */}
@@ -91,8 +89,9 @@ export function BusinessPhotos({
             className="sr-only"
             disabled={pending}
             onChange={(event) => {
-              void addPhotos(event.target.files);
+              const picked = Array.from(event.target.files ?? []);
               event.target.value = "";
+              void addPhotos(picked);
             }}
           />
         </label>

@@ -6,7 +6,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import { AccountBar } from "../components/account-bar";
 import { BusinessDetails } from "../components/business-details";
 import { BusinessForm } from "../components/business-form";
-import { BusinessPhotos } from "../components/business-photos";
+import { BusinessEditor } from "../components/business-editor";
 import { apiDelete, apiGet, apiPost, type UserProfile } from "@/lib/api";
 import { auth } from "@/lib/firebase";
 import {
@@ -46,7 +46,6 @@ export default function DashboardPage() {
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState("");
-  const [editing, setEditing] = useState(false);
   const [memberEmail, setMemberEmail] = useState("");
   const [memberRole, setMemberRole] = useState<"owner" | "worker">("worker");
   const [teamNotice, setTeamNotice] = useState("");
@@ -129,7 +128,6 @@ export default function DashboardPage() {
       await apiDelete(`/businesses/${business.id}`, token);
       setBusiness(null);
       setRole(null);
-      setEditing(false);
     } catch (err: unknown) {
       setError(errorMessage(err, t));
     }
@@ -209,32 +207,15 @@ export default function DashboardPage() {
               </ul>
             </div>
           ) : null}
-          {role === "owner" ? (
-            <BusinessPhotos business={business} scope="owner" onChanged={setBusiness} />
-          ) : null}
           <div className="mt-6">
-            {editing && role === "owner" ? (
-              <BusinessForm
-                mode="manage"
-                initial={business}
-                onSubmitted={(updated) => {
-                  setBusiness(updated);
-                  setEditing(false);
-                }}
-              />
+            {role === "owner" && business.status !== "rejected" ? (
+              <BusinessEditor business={business} scope="owner" onChanged={setBusiness} />
             ) : (
-              <BusinessDetails business={business} showImages={role !== "owner"} />
+              <BusinessDetails business={business} />
             )}
           </div>
           {role === "owner" ? (
             <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-              <button
-                type="button"
-                onClick={() => setEditing((current) => !current)}
-                className="inline-flex h-11 items-center justify-center rounded-2xl bg-brand px-4 text-sm font-medium text-white"
-              >
-                {editing ? t("admin.view") : t("admin.update")}
-              </button>
               <button
                 type="button"
                 onClick={() => void removeBusiness()}

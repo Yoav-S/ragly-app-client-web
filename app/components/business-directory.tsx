@@ -1,9 +1,7 @@
 "use client";
 
 import { useMemo, useState, type ReactNode } from "react";
-import { BusinessDetails } from "./business-details";
-import { BusinessForm } from "./business-form";
-import { BusinessPhotos } from "./business-photos";
+import { BusinessEditor } from "./business-editor";
 import { apiDelete, apiPost } from "@/lib/api";
 import { auth } from "@/lib/firebase";
 import { errorMessage } from "@/lib/errors";
@@ -45,7 +43,7 @@ export function BusinessDirectory({
   const [status, setStatus] = useState<Business["status"] | "all">("published");
   const [sort, setSort] = useState<SortKey>("category");
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [editing, setEditing] = useState(false);
+  const [listOnly, setListOnly] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteError, setInviteError] = useState("");
   const [inviteNotice, setInviteNotice] = useState("");
@@ -74,12 +72,14 @@ export function BusinessDirectory({
     });
   }, [items, query, category, ownership, status, sort]);
 
-  const selected = items.find((business) => business.id === selectedId) ?? null;
+  const selected = listOnly
+    ? null
+    : (visible.find((business) => business.id === selectedId) ?? visible[0] ?? null);
   const contact = selected?.email || selected?.owner_email || "";
 
   function open(id: string) {
+    setListOnly(false);
     setSelectedId(id);
-    setEditing(false);
     setInviteEmail("");
     setInviteError("");
     setInviteNotice("");
@@ -211,32 +211,18 @@ export function BusinessDirectory({
         )}
       </section>
       <section
-        className={
-          selected
-            ? "rounded-3xl border border-line bg-surface p-5 sm:p-6"
-            : "hidden rounded-3xl border border-dashed border-line bg-surface p-8 text-sm text-muted lg:block"
-        }
+        className={selected ? "rounded-3xl border border-line bg-surface p-5 sm:p-6" : "hidden"}
       >
         {selected ? (
           <div>
             <button
               type="button"
-              onClick={() => {
-                setSelectedId(null);
-                setEditing(false);
-              }}
+              onClick={() => setListOnly(true)}
               className="text-sm font-medium text-brand lg:hidden"
             >
               {t("admin.back_to_list")}
             </button>
             <div className="mt-4 flex flex-col gap-3 sm:flex-row lg:mt-0">
-              <button
-                type="button"
-                onClick={() => setEditing((current) => !current)}
-                className="inline-flex h-11 items-center justify-center rounded-2xl bg-brand px-4 text-sm font-medium text-white"
-              >
-                {editing ? t("admin.view") : t("admin.update")}
-              </button>
               <button
                 type="button"
                 onClick={() => void removeBusiness()}
@@ -298,32 +284,9 @@ export function BusinessDirectory({
                 </ul>
               ) : null}
             </form>
-            <BusinessPhotos
-              business={selected}
-              scope="admin"
-              onChanged={onUpdated}
-            />
-            {editing ? (
-              <div className="mt-6">
-                <BusinessForm
-                  key={selected.id}
-                  mode="edit"
-                  initial={selected}
-                  onSubmitted={(business) => {
-                    onUpdated(business);
-                    setEditing(false);
-                  }}
-                />
-              </div>
-            ) : (
-              <div className="mt-6">
-                <BusinessDetails business={selected} showImages={false} />
-              </div>
-            )}
+            <BusinessEditor business={selected} scope="admin" onChanged={onUpdated} />
           </div>
-        ) : (
-          t("admin.pick_business")
-        )}
+        ) : null}
       </section>
     </div>
   );
