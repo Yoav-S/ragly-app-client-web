@@ -86,6 +86,10 @@ export function apiPatch<T>(path: string, token: string, body: unknown): Promise
   return request<T>(path, { method: "PATCH", body: JSON.stringify(body) }, token);
 }
 
+export function apiDelete(path: string, token: string): Promise<void> {
+  return request<void>(path, { method: "DELETE" }, token);
+}
+
 export type UserProfile = {
   id: string;
   email: string;

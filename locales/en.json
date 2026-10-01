@@ -35,7 +35,8 @@
     "firebase_signin_failed": "Sign-in failed after verification. Please try again.",
     "network_timeout": "The request timed out. Check your connection and try again.",
     "business_incomplete": "Fill every required field before sending the request.",
-    "business_not_pending": "This listing is not waiting for review."
+    "business_not_pending": "This listing is not waiting for review.",
+    "already_resolved": "This request was already sent or already answered."
   },
   "welcome": {
     "kicker": "Ragly for Business",
@@ -61,7 +62,17 @@
   "dashboard": {
     "empty": "You have no business yet. Add your business to request a place in the Ragly app.",
     "sign_out": "Sign out",
-    "account": "Account"
+    "account": "Account",
+    "invite_title": "You are invited to join {name}",
+    "invite_body": "Approve to become the {role} of this business.",
+    "approve": "Approve",
+    "decline": "Decline",
+    "team": "Team",
+    "team_hint": "They join only after they approve.",
+    "add_member": "Send invitation",
+    "worker_notice": "You are a worker here. You can view this business. You cannot edit, invite, or delete it.",
+    "delete": "Delete this business",
+    "your_role": "Your role"
   },
   "business": {
     "title": "Publish your business",
@@ -120,6 +131,16 @@
     "view": "View",
     "save": "Save",
     "email_owner": "Email the owner",
+    "invite_owner": "Invite an owner",
+    "invite_email": "Owner email",
+    "send_invite": "Send invitation",
+    "invite_sent": "Invitation sent. They become the owner only after they approve.",
+    "invite_status": "Owner request",
+    "pending": "Waiting for approval",
+    "approved": "Approved",
+    "declined": "Declined",
+    "role_owner": "Owner",
+    "role_worker": "Worker",
     "tab_add": "Add a business",
     "empty_pending": "No businesses are waiting for review.",
     "empty_recent": "No reviewed businesses yet.",

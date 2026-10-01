@@ -29,6 +29,15 @@ export type GeoLocation = {
   coordinates: [number, number];
 };
 
+export type Invitation = {
+  id: string;
+  business_id: string;
+  business_name: string;
+  email: string;
+  role: "owner" | "worker";
+  status: "pending" | "approved" | "declined";
+};
+
 export type Business = {
   id: string;
   name: string;
@@ -49,11 +58,14 @@ export type Business = {
   owned: boolean;
   instagram: string | null;
   rejection_reason: string | null;
+  invitations: Invitation[];
 };
 
 export type BusinessSession = {
   is_ragly_admin: boolean;
   business: Business | null;
+  role: "owner" | "worker" | null;
+  invitations: Invitation[];
 };
 
 export type BusinessSubmit = {

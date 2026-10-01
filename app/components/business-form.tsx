@@ -96,7 +96,7 @@ export function BusinessForm({
   onSubmitted,
 }: {
   initial?: Business;
-  mode?: "owner" | "admin" | "edit";
+  mode?: "owner" | "admin" | "edit" | "manage";
   onSubmitted: (business: Business) => void;
 }) {
   const { t } = useI18n();
@@ -170,8 +170,14 @@ export function BusinessForm({
         instagram: instagram.trim() || null,
       };
       const created =
-        mode === "edit" && initial
-          ? await apiPatch<Business>(`/admin/businesses/${initial.id}`, token, body)
+        (mode === "edit" || mode === "manage") && initial
+          ? await apiPatch<Business>(
+              mode === "manage"
+                ? `/businesses/${initial.id}`
+                : `/admin/businesses/${initial.id}`,
+              token,
+              body,
+            )
           : await apiPost<Business>(
               mode === "admin" ? "/admin/businesses" : "/businesses",
               token,
@@ -192,7 +198,7 @@ export function BusinessForm({
     >
       {mode === "owner" ? (
         <h1 className="text-3xl font-medium text-foreground">{t("business.title")}</h1>
-      ) : mode === "edit" ? null : (
+      ) : mode === "edit" || mode === "manage" ? null : (
         <label className="block text-sm text-muted">
           {t("admin.owner_account")}
           <input
@@ -358,7 +364,11 @@ export function BusinessForm({
         disabled={!valid || pending}
         className="inline-flex h-12 items-center justify-center rounded-2xl bg-brand px-5 text-sm font-medium text-white disabled:bg-[#8DB0AA]"
       >
-        {mode === "admin" ? t("admin.publish") : mode === "edit" ? t("admin.save") : t("business.submit")}
+        {mode === "admin"
+          ? t("admin.publish")
+          : mode === "edit" || mode === "manage"
+            ? t("admin.save")
+            : t("business.submit")}
       </button>
     </form>
   );

@@ -3,7 +3,15 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { BusinessDetails } from "./business-details";
 import { BusinessForm } from "./business-form";
-import { CATEGORIES, type Business, type BusinessCategory } from "@/lib/business";
+import { apiDelete, apiPost } from "@/lib/api";
+import { auth } from "@/lib/firebase";
+import { errorMessage } from "@/lib/errors";
+import {
+  CATEGORIES,
+  type Business,
+  type BusinessCategory,
+  type Invitation,
+} from "@/lib/business";
 import { useI18n } from "@/lib/i18n";
 
 const CATEGORY_ORDER: BusinessCategory[] = [
@@ -20,9 +28,13 @@ type Ownership = "all" | "owned" | "unowned";
 export function BusinessDirectory({
   items,
   onUpdated,
+  onInvited,
+  onDeleted,
 }: {
   items: Business[];
   onUpdated: (business: Business) => void;
+  onInvited: (businessId: string, invitation: Invitation) => void;
+  onDeleted: (businessId: string) => void;
 }) {
   const { t } = useI18n();
   const [query, setQuery] = useState("");
@@ -31,6 +43,11 @@ export function BusinessDirectory({
   const [sort, setSort] = useState<SortKey>("category");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteError, setInviteError] = useState("");
+  const [inviteNotice, setInviteNotice] = useState("");
+  const [inviting, setInviting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -59,6 +76,51 @@ export function BusinessDirectory({
   function open(id: string) {
     setSelectedId(id);
     setEditing(false);
+    setInviteEmail("");
+    setInviteError("");
+    setInviteNotice("");
+  }
+
+  async function removeBusiness() {
+    if (!selected || deleting) return;
+    const user = auth.currentUser;
+    if (!user) return;
+    setDeleting(true);
+    setInviteError("");
+    try {
+      const token = await user.getIdToken();
+      await apiDelete(`/admin/businesses/${selected.id}`, token);
+      onDeleted(selected.id);
+      setSelectedId(null);
+    } catch (err: unknown) {
+      setInviteError(errorMessage(err, t));
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  async function sendInvite() {
+    if (!selected || inviting || !inviteEmail.trim()) return;
+    const user = auth.currentUser;
+    if (!user) return;
+    setInviting(true);
+    setInviteError("");
+    setInviteNotice("");
+    try {
+      const token = await user.getIdToken();
+      const invitation = await apiPost<Invitation>(
+        `/admin/businesses/${selected.id}/invitations`,
+        token,
+        { email: inviteEmail.trim().toLowerCase() },
+      );
+      onInvited(selected.id, invitation);
+      setInviteEmail("");
+      setInviteNotice(t("admin.invite_sent"));
+    } catch (err: unknown) {
+      setInviteError(errorMessage(err, t));
+    } finally {
+      setInviting(false);
+    }
   }
 
   return (
@@ -158,6 +220,14 @@ export function BusinessDirectory({
               >
                 {editing ? t("admin.view") : t("admin.update")}
               </button>
+              <button
+                type="button"
+                onClick={() => void removeBusiness()}
+                disabled={deleting}
+                className="inline-flex h-11 items-center justify-center rounded-2xl border border-line px-4 text-sm font-medium text-[#EF4444] disabled:text-muted"
+              >
+                {t("dashboard.delete")}
+              </button>
               {contact ? (
                 <a
                   href={`mailto:${contact}?subject=${encodeURIComponent(selected.name)}`}
@@ -167,6 +237,50 @@ export function BusinessDirectory({
                 </a>
               ) : null}
             </div>
+            <form
+              className="mt-6 grid gap-3 rounded-2xl bg-background p-4"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void sendInvite();
+              }}
+            >
+              <p className="text-sm font-medium text-foreground">{t("admin.invite_owner")}</p>
+              <label className="block text-sm text-muted">
+                {t("admin.invite_email")}
+                <input
+                  type="email"
+                  required
+                  value={inviteEmail}
+                  onChange={(event) => setInviteEmail(event.target.value)}
+                  className="mt-2 h-11 w-full rounded-2xl border border-line bg-surface px-4 text-sm text-foreground outline-none focus:border-brand"
+                />
+              </label>
+              {inviteError ? (
+                <p className="text-sm text-[#EF4444]" role="alert">
+                  {inviteError}
+                </p>
+              ) : null}
+              {inviteNotice ? <p className="text-sm text-brand">{inviteNotice}</p> : null}
+              <button
+                type="submit"
+                disabled={inviting}
+                className="inline-flex h-11 items-center justify-center rounded-2xl border border-line px-4 text-sm font-medium text-foreground disabled:text-muted"
+              >
+                {t("admin.send_invite")}
+              </button>
+              {(selected.invitations ?? []).length > 0 ? (
+                <ul className="grid gap-2">
+                  {selected.invitations.map((invitation) => (
+                    <li key={invitation.id} className="flex items-center justify-between gap-3 text-sm">
+                      <span className="text-foreground">
+                        {invitation.email} · {t(`admin.role_${invitation.role}`)}
+                      </span>
+                      <span className="text-muted">{t(`admin.${invitation.status}`)}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </form>
             {editing ? (
               <div className="mt-6">
                 <BusinessForm

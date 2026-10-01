@@ -8,7 +8,7 @@ import { BusinessDetails } from "../components/business-details";
 import { BusinessDirectory } from "../components/business-directory";
 import { BusinessForm } from "../components/business-form";
 import { apiGet, apiPost } from "@/lib/api";
-import { type Business, type BusinessSession } from "@/lib/business";
+import { type Business, type BusinessSession, type Invitation } from "@/lib/business";
 import { errorMessage } from "@/lib/errors";
 import { auth } from "@/lib/firebase";
 import { useI18n } from "@/lib/i18n";
@@ -157,6 +157,18 @@ export default function AdminPage() {
             setItems((current) =>
               (current ?? []).map((item) => (item.id === business.id ? business : item)),
             )
+          }
+          onInvited={(businessId: string, invitation: Invitation) =>
+            setItems((current) =>
+              (current ?? []).map((item) =>
+                item.id === businessId
+                  ? { ...item, invitations: [invitation, ...(item.invitations ?? [])] }
+                  : item,
+              ),
+            )
+          }
+          onDeleted={(businessId) =>
+            setItems((current) => (current ?? []).filter((item) => item.id !== businessId))
           }
         />
       ) : tab === "add" ? (

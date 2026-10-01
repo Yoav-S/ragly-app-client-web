@@ -35,7 +35,8 @@
     "firebase_signin_failed": "Autentificarea a eșuat după verificare. Încearcă din nou.",
     "network_timeout": "Cererea a expirat. Verifică conexiunea și încearcă din nou.",
     "business_incomplete": "Completează toate câmpurile obligatorii înainte de trimitere.",
-    "business_not_pending": "Această afacere nu așteaptă verificarea."
+    "business_not_pending": "Această afacere nu așteaptă verificarea.",
+    "already_resolved": "Cererea a fost deja trimisă sau a primit răspuns."
   },
   "welcome": {
     "kicker": "Ragly pentru afaceri",
@@ -61,7 +62,17 @@
   "dashboard": {
     "empty": "Nu ai încă o afacere. Adaugă afacerea ca să ceri un loc în aplicația Ragly.",
     "sign_out": "Deconectare",
-    "account": "Cont"
+    "account": "Cont",
+    "invite_title": "Ești invitat să te alături: {name}",
+    "invite_body": "Aprobă ca să devii {role} al acestei afaceri.",
+    "approve": "Aprobă",
+    "decline": "Refuză",
+    "team": "Echipă",
+    "team_hint": "Se alătură doar după ce aprobă.",
+    "add_member": "Trimite invitația",
+    "worker_notice": "Ești angajat aici. Poți vedea afacerea. Nu poți modifica, invita sau șterge.",
+    "delete": "Șterge afacerea",
+    "your_role": "Rolul tău"
   },
   "business": {
     "title": "Publică afacerea",
@@ -120,6 +131,16 @@
     "view": "Vezi",
     "save": "Salvează",
     "email_owner": "Scrie proprietarului",
+    "invite_owner": "Invită un proprietar",
+    "invite_email": "E-mailul proprietarului",
+    "send_invite": "Trimite invitația",
+    "invite_sent": "Invitația a fost trimisă. Devine proprietar doar după ce aprobă.",
+    "invite_status": "Cerere de proprietar",
+    "pending": "Așteaptă aprobarea",
+    "approved": "Aprobată",
+    "declined": "Refuzată",
+    "role_owner": "Proprietar",
+    "role_worker": "Angajat",
     "tab_add": "Adaugă o afacere",
     "empty_pending": "Nicio afacere nu așteaptă verificarea.",
     "empty_recent": "Nicio afacere verificată încă.",
