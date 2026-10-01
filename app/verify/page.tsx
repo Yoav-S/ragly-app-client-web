@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ApiError } from "@/lib/api";
@@ -26,6 +26,7 @@ export default function VerifyPage() {
   const [info, setInfo] = useState("");
   const [pending, setPending] = useState(false);
   const [cooldown, setCooldown] = useState(RESEND_COOLDOWN_SEC);
+  const submitting = useRef(false);
 
   useEffect(() => {
     const pendingEmail = getPendingEmail();
@@ -44,22 +45,29 @@ export default function VerifyPage() {
     return () => window.clearInterval(timer);
   }, [cooldown]);
 
-  async function onSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!email || otp.length !== OTP_LENGTH || pending) {
-      if (otp.length !== OTP_LENGTH) setError(t("errors.otp_length"));
-      return;
-    }
+  async function submitCode(code: string) {
+    if (!email || code.length !== OTP_LENGTH || submitting.current) return;
+    submitting.current = true;
     setPending(true);
     setError("");
     setInfo("");
     try {
-      await verifyOtpAndSignIn(email, otp);
+      await verifyOtpAndSignIn(email, code);
       router.replace("/dashboard");
     } catch (err: unknown) {
       setError(errorMessage(err, t));
       setPending(false);
+      submitting.current = false;
     }
+  }
+
+  function onSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (otp.length !== OTP_LENGTH) {
+      setError(t("errors.otp_length"));
+      return;
+    }
+    void submitCode(otp);
   }
 
   async function onResend() {
@@ -108,8 +116,13 @@ export default function VerifyPage() {
           value={otp}
           aria-label={t("verify.title")}
           onChange={(event) => {
-            setOtp(event.target.value.replace(/\D/g, "").slice(0, OTP_LENGTH));
+            const next = event.target.value.replace(/\D/g, "").slice(0, OTP_LENGTH);
+            setOtp(next);
             if (error) setError("");
+            if (next.length === OTP_LENGTH) {
+              event.target.blur();
+              void submitCode(next);
+            }
           }}
           className="h-12 w-full rounded-2xl border border-line bg-surface px-4 text-center text-lg tracking-[0.4em] text-foreground outline-none focus:border-brand"
         />
