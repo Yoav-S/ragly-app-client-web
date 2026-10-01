@@ -82,6 +82,10 @@ export function apiGet<T>(path: string, token: string): Promise<T> {
   return request<T>(path, { method: "GET" }, token);
 }
 
+export function apiPatch<T>(path: string, token: string, body: unknown): Promise<T> {
+  return request<T>(path, { method: "PATCH", body: JSON.stringify(body) }, token);
+}
+
 export type UserProfile = {
   id: string;
   email: string;

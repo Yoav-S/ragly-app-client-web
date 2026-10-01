@@ -24,12 +24,15 @@ export type OpeningHours = {
   sun: TimeSlot[];
 };
 
+export type GeoLocation = {
+  type: "Point";
+  coordinates: [number, number];
+};
+
 export type Business = {
   id: string;
-  owner_uid: string | null;
-  owner_email: string;
   name: string;
-  phones: string[];
+  phone: string[];
   email: string | null;
   description: string | null;
   category: BusinessCategory;
@@ -39,9 +42,11 @@ export type Business = {
   timezone: string;
   opening_hours: OpeningHours;
   website: string | null;
-  latitude: number;
-  longitude: number;
-  photo_url: string | null;
+  location: GeoLocation | null;
+  photo: string | null;
+  owner_uid: string | null;
+  owner_email: string | null;
+  owned: boolean;
   instagram: string | null;
   rejection_reason: string | null;
 };
@@ -53,7 +58,7 @@ export type BusinessSession = {
 
 export type BusinessSubmit = {
   name: string;
-  phones: string[];
+  phone: string[];
   email: string | null;
   description: string | null;
   category: BusinessCategory;
@@ -62,8 +67,7 @@ export type BusinessSubmit = {
   timezone: string;
   opening_hours: OpeningHours;
   website: string | null;
-  latitude: number;
-  longitude: number;
-  photo_url: string | null;
+  location: GeoLocation;
+  photo: string | null;
   instagram: string | null;
 };

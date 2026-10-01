@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { apiPost } from "@/lib/api";
+import { apiPatch, apiPost } from "@/lib/api";
 import { auth } from "@/lib/firebase";
 import {
   CATEGORIES,
@@ -96,13 +96,13 @@ export function BusinessForm({
   onSubmitted,
 }: {
   initial?: Business;
-  mode?: "owner" | "admin";
+  mode?: "owner" | "admin" | "edit";
   onSubmitted: (business: Business) => void;
 }) {
   const { t } = useI18n();
   const [ownerEmail, setOwnerEmail] = useState("");
   const [name, setName] = useState(initial?.name ?? "");
-  const [phones, setPhones] = useState(initial?.phones.length ? initial.phones : [""]);
+  const [phones, setPhones] = useState(initial?.phone.length ? initial.phone : [""]);
   const [email, setEmail] = useState(initial?.email ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
   const [category, setCategory] = useState<BusinessCategory>(
@@ -115,10 +115,10 @@ export function BusinessForm({
   const [days, setDays] = useState(initial ? daysFromBusiness(initial) : emptyDays);
   const [website, setWebsite] = useState(initial?.website ?? "");
   const [latitude, setLatitude] = useState(
-    initial ? String(initial.latitude) : "",
+    initial?.location ? String(initial.location.coordinates[1]) : "",
   );
   const [longitude, setLongitude] = useState(
-    initial ? String(initial.longitude) : "",
+    initial?.location ? String(initial.location.coordinates[0]) : "",
   );
   const [instagram, setInstagram] = useState(initial?.instagram ?? "");
   const [photo, setPhoto] = useState<File | null>(null);
@@ -138,7 +138,7 @@ export function BusinessForm({
       longitude,
       alwaysOpen,
       days,
-    }) && (mode === "owner" || EMAIL_PATTERN.test(ownerEmail.trim()));
+    }) && (mode !== "admin" || EMAIL_PATTERN.test(ownerEmail.trim()));
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -148,29 +148,35 @@ export function BusinessForm({
     setPending(true);
     setError("");
     try {
-      const photoUrl = photo ? await uploadBusinessPhoto(photo) : null;
+      const photoUrl = photo ? await uploadBusinessPhoto(photo) : initial?.photo ?? null;
       const token = await user.getIdToken();
-      const created = await apiPost<Business>(
-        mode === "admin" ? "/admin/businesses" : "/businesses",
-        token,
-        {
-          ...(mode === "admin" ? { owner_email: ownerEmail.trim().toLowerCase() } : {}),
-          name: name.trim(),
-          phones: phones.map((phone) => phone.trim()).filter(Boolean),
-          email: email.trim() || null,
-          description: description.trim() || null,
-          category,
-          city: city.trim(),
-          address: address.trim(),
-          timezone: timezone.trim(),
-          opening_hours: hoursFromForm(alwaysOpen, days),
-          website: website.trim() || null,
-          latitude: Number(latitude),
-          longitude: Number(longitude),
-          photo_url: photoUrl,
-          instagram: instagram.trim() || null,
+      const body = {
+        ...(mode === "admin" ? { owner_email: ownerEmail.trim().toLowerCase() } : {}),
+        name: name.trim(),
+        phone: phones.map((item) => item.trim()).filter(Boolean),
+        email: email.trim() || null,
+        description: description.trim() || null,
+        category,
+        city: city.trim(),
+        address: address.trim(),
+        timezone: timezone.trim(),
+        opening_hours: hoursFromForm(alwaysOpen, days),
+        website: website.trim() || null,
+        location: {
+          type: "Point" as const,
+          coordinates: [Number(longitude), Number(latitude)] as [number, number],
         },
-      );
+        photo: photoUrl,
+        instagram: instagram.trim() || null,
+      };
+      const created =
+        mode === "edit" && initial
+          ? await apiPatch<Business>(`/admin/businesses/${initial.id}`, token, body)
+          : await apiPost<Business>(
+              mode === "admin" ? "/admin/businesses" : "/businesses",
+              token,
+              body,
+            );
       onSubmitted(created);
     } catch (err: unknown) {
       setError(errorMessage(err, t));
@@ -186,7 +192,7 @@ export function BusinessForm({
     >
       {mode === "owner" ? (
         <h1 className="text-3xl font-medium text-foreground">{t("business.title")}</h1>
-      ) : (
+      ) : mode === "edit" ? null : (
         <label className="block text-sm text-muted">
           {t("admin.owner_account")}
           <input
@@ -352,7 +358,7 @@ export function BusinessForm({
         disabled={!valid || pending}
         className="inline-flex h-12 items-center justify-center rounded-2xl bg-brand px-5 text-sm font-medium text-white disabled:bg-[#8DB0AA]"
       >
-        {mode === "admin" ? t("admin.publish") : t("business.submit")}
+        {mode === "admin" ? t("admin.publish") : mode === "edit" ? t("admin.save") : t("business.submit")}
       </button>
     </form>
   );

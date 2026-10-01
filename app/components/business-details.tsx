@@ -9,14 +9,18 @@ export function BusinessDetails({ business }: { business: Business }) {
 
   return (
     <div className="grid gap-4">
-      {business.photo_url ? (
+      {business.photo?.startsWith("https://") ? (
         // Remote Firebase download URLs are not known to the image optimizer.
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={business.photo_url}
+          src={business.photo}
           alt={business.name}
           className="h-48 w-full rounded-2xl object-cover"
         />
+      ) : business.photo ? (
+        <p className="text-sm text-muted">
+          {t("business.photo")}: {business.photo}
+        </p>
       ) : null}
       <div>
         <h3 className="text-xl font-medium text-foreground">{business.name}</h3>
@@ -25,10 +29,14 @@ export function BusinessDetails({ business }: { business: Business }) {
         </p>
       </div>
       <dl className="grid gap-4 sm:grid-cols-2">
-        <Fact label={t("admin.owner")}>{business.owner_email}</Fact>
+        <Fact label={t("admin.owner")}>
+          {business.owned
+            ? business.owner_email || business.email || t("admin.owned")
+            : t("admin.not_owned")}
+        </Fact>
         <Fact label={t("business.phones")}>
           <span className="grid gap-1">
-            {business.phones.map((phone) => (
+            {business.phone.map((phone) => (
               <a key={phone} href={`tel:${phone.replace(/\s/g, "")}`} className="text-brand">
                 {phone}
               </a>
@@ -37,9 +45,11 @@ export function BusinessDetails({ business }: { business: Business }) {
         </Fact>
         <Fact label={t("business.address")}>
           {business.address}
-          <span className="mt-1 block text-muted">
-            {business.latitude}, {business.longitude}
-          </span>
+          {business.location ? (
+            <span className="mt-1 block text-muted">
+              {business.location.coordinates[1]}, {business.location.coordinates[0]}
+            </span>
+          ) : null}
         </Fact>
         <Fact label={t("business.timezone")}>{business.timezone}</Fact>
         {business.email ? <Fact label={t("business.email")}>{business.email}</Fact> : null}

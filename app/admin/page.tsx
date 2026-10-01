@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { onAuthStateChanged } from "firebase/auth";
 import { AccountBar } from "../components/account-bar";
 import { BusinessDetails } from "../components/business-details";
+import { BusinessDirectory } from "../components/business-directory";
 import { BusinessForm } from "../components/business-form";
 import { apiGet, apiPost } from "@/lib/api";
 import { type Business, type BusinessSession } from "@/lib/business";
@@ -31,7 +32,7 @@ export default function AdminPage() {
   const [reasons, setReasons] = useState<Record<string, string>>({});
   const [error, setError] = useState("");
   const [busyId, setBusyId] = useState("");
-  const [tab, setTab] = useState<"reviews" | "add">("reviews");
+  const [tab, setTab] = useState<"businesses" | "reviews" | "add">("businesses");
   const [notice, setNotice] = useState("");
   const [seen, setSeen] = useState<string[] | null>(null);
 
@@ -113,6 +114,9 @@ export default function AdminPage() {
         <Stat label={t("admin.rejected")} value={items ? rejected : "–"} />
       </div>
       <div className="mt-6 flex gap-2">
+        <TabButton active={tab === "businesses"} onClick={() => setTab("businesses")}>
+          {t("admin.tab_businesses")}
+        </TabButton>
         <TabButton active={tab === "reviews"} count={unread.length} onClick={() => setTab("reviews")}>
           {t("admin.tab_reviews")}
         </TabButton>
@@ -146,7 +150,16 @@ export default function AdminPage() {
         </div>
       ) : null}
 
-      {tab === "add" ? (
+      {tab === "businesses" ? (
+        <BusinessDirectory
+          items={items ?? []}
+          onUpdated={(business) =>
+            setItems((current) =>
+              (current ?? []).map((item) => (item.id === business.id ? business : item)),
+            )
+          }
+        />
+      ) : tab === "add" ? (
         <section className="mt-6 rounded-3xl border border-line bg-surface p-5 sm:p-8">
           <BusinessForm
             mode="admin"
