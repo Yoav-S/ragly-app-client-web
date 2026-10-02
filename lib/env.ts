@@ -1,41 +1,50 @@
-function required(name: string, value: string | undefined): string {
+function setting(value: string | undefined, fallback: string): string {
   const trimmed = value?.trim() ?? "";
-  if (!trimmed) {
-    throw new Error(`${name} is missing.`);
-  }
-  return trimmed;
+  return trimmed || fallback;
 }
 
-/** Public website config. Values come from the environment, same Firebase project and API as the app. */
+/** Public website config. A local env value overrides the live default. */
+const publicConfig = {
+  apiBaseUrl: "https://petto-server-326582782489.europe-west1.run.app",
+  firebase: {
+    apiKey: "AIzaSyCLL2nVmqiF8de16mAP4KSNtGwx1fmM5d4",
+    authDomain: "petto-494013.firebaseapp.com",
+    projectId: "petto-494013",
+    storageBucket: "petto-494013.firebasestorage.app",
+    messagingSenderId: "326582782489",
+    appId: "1:326582782489:web:1fdca225784eb3a2edf888",
+  },
+};
+
 export const env = {
-  apiBaseUrl: required(
-    "NEXT_PUBLIC_API_BASE_URL",
+  apiBaseUrl: setting(
     process.env.NEXT_PUBLIC_API_BASE_URL,
+    publicConfig.apiBaseUrl,
   ).replace(/\/$/, ""),
   firebase: {
-    apiKey: required(
-      "NEXT_PUBLIC_FIREBASE_API_KEY",
+    apiKey: setting(
       process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+      publicConfig.firebase.apiKey,
     ),
-    authDomain: required(
-      "NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN",
+    authDomain: setting(
       process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+      publicConfig.firebase.authDomain,
     ),
-    projectId: required(
-      "NEXT_PUBLIC_FIREBASE_PROJECT_ID",
+    projectId: setting(
       process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+      publicConfig.firebase.projectId,
     ),
-    storageBucket: required(
-      "NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET",
+    storageBucket: setting(
       process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+      publicConfig.firebase.storageBucket,
     ),
-    messagingSenderId: required(
-      "NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID",
+    messagingSenderId: setting(
       process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+      publicConfig.firebase.messagingSenderId,
     ),
-    appId: required(
-      "NEXT_PUBLIC_FIREBASE_APP_ID",
+    appId: setting(
       process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+      publicConfig.firebase.appId,
     ),
   },
 };
