@@ -1,7 +1,7 @@
 "use client";
 
-import { FormEvent, useState } from "react";
-import { apiPatch, apiPost } from "@/lib/api";
+import { FormEvent, useEffect, useRef, useState } from "react";
+import { apiPatch, apiPost, apiUpload } from "@/lib/api";
 import { auth } from "@/lib/firebase";
 import {
   CATEGORIES,
@@ -15,6 +15,11 @@ import { errorMessage } from "@/lib/errors";
 import { useI18n } from "@/lib/i18n";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PHOTO_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
+const MAX_PHOTOS = 6;
+
+type PickedPhoto = { file: File; url: string };
 
 type DayState = { closed: boolean; open: string; close: string };
 
@@ -120,8 +125,19 @@ export function BusinessForm({
     initial?.location ? String(initial.location.coordinates[0]) : "",
   );
   const [instagram, setInstagram] = useState(initial?.instagram ?? "");
+  const [picked, setPicked] = useState<PickedPhoto[]>([]);
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
+
+  const pickedRef = useRef(picked);
+  pickedRef.current = picked;
+  const createdRef = useRef<Business | null>(null);
+  const uploadedRef = useRef<WeakSet<File>>(new WeakSet());
+  useEffect(() => {
+    return () => {
+      for (const item of pickedRef.current) URL.revokeObjectURL(item.url);
+    };
+  }, []);
 
   const valid =
     formIsValid({
@@ -136,7 +152,8 @@ export function BusinessForm({
       longitude,
       alwaysOpen,
       days,
-    }) && (mode !== "admin" || EMAIL_PATTERN.test(ownerEmail.trim()));
+    }) &&
+    (mode !== "admin" || !ownerEmail.trim() || EMAIL_PATTERN.test(ownerEmail.trim()));
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -148,7 +165,9 @@ export function BusinessForm({
     try {
       const token = await user.getIdToken();
       const body = {
-        ...(mode === "admin" ? { owner_email: ownerEmail.trim().toLowerCase() } : {}),
+        ...(mode === "admin" && ownerEmail.trim()
+          ? { owner_email: ownerEmail.trim().toLowerCase() }
+          : {}),
         name: name.trim(),
         phone: phones.map((item) => item.trim()).filter(Boolean),
         email: email.trim() || null,
@@ -166,8 +185,10 @@ export function BusinessForm({
         photo: initial?.photo ?? null,
         instagram: instagram.trim() || null,
       };
-      const created =
-        (mode === "edit" || mode === "manage") && initial
+      const updating = (mode === "edit" || mode === "manage") && initial;
+      let saved = updating ? null : createdRef.current;
+      if (!saved) {
+        saved = updating
           ? await apiPatch<Business>(
               mode === "manage"
                 ? `/businesses/${initial.id}`
@@ -180,7 +201,21 @@ export function BusinessForm({
               token,
               body,
             );
-      onSubmitted(created);
+        if (!updating) createdRef.current = saved;
+      }
+      if ((mode === "admin" || mode === "owner") && picked.length > 0) {
+        const photoPath =
+          mode === "admin"
+            ? `/admin/businesses/${saved.id}/photos`
+            : `/businesses/${saved.id}/photos`;
+        for (const item of picked) {
+          if (uploadedRef.current.has(item.file)) continue;
+          saved = await apiUpload<Business>(photoPath, token, item.file);
+          uploadedRef.current.add(item.file);
+          createdRef.current = saved;
+        }
+      }
+      onSubmitted(saved);
     } catch (err: unknown) {
       setError(errorMessage(err, t));
       setPending(false);
@@ -197,12 +232,11 @@ export function BusinessForm({
         <h1 className="text-3xl font-medium text-foreground">{t("business.title")}</h1>
       ) : mode === "edit" || mode === "manage" ? null : (
         <label className="block text-sm text-muted">
-          {t("admin.owner_account")}
+          {t("admin.owner_account")} <span>({t("business.optional")})</span>
           <input
             className={fieldClass}
             type="email"
             value={ownerEmail}
-            required
             onChange={(event) => setOwnerEmail(event.target.value)}
           />
           <span className="mt-2 block text-sm">{t("admin.owner_account_hint")}</span>
@@ -341,6 +375,65 @@ export function BusinessForm({
         {t("business.instagram")} <span>({t("business.optional")})</span>
         <input className={fieldClass} value={instagram} onChange={(event) => setInstagram(event.target.value)} />
       </label>
+      {mode === "admin" || mode === "owner" ? (
+        <fieldset>
+          <legend className="text-sm text-muted">
+            {t("business.photos")} <span>({t("business.optional")})</span>
+          </legend>
+          {picked.length > 0 ? (
+            <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+              {picked.map((item) => (
+                <div key={item.url} className="relative">
+                  {/* Local previews are blob URLs, not remote images. */}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={item.url} alt="" className="h-28 w-full rounded-2xl object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      URL.revokeObjectURL(item.url);
+                      setPicked((current) => current.filter((row) => row.url !== item.url));
+                    }}
+                    className="absolute end-2 top-2 rounded-full bg-white px-2 py-1 text-xs font-medium text-[#EF4444]"
+                  >
+                    {t("business.remove_photo")}
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : null}
+          {picked.length < MAX_PHOTOS ? (
+            <label className="mt-3 inline-flex h-11 cursor-pointer items-center justify-center rounded-2xl border border-line px-4 text-sm font-medium text-foreground">
+              {t("business.add_photos")}
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                multiple
+                className="sr-only"
+                onChange={(event) => {
+                  const files = Array.from(event.target.files ?? []);
+                  event.target.value = "";
+                  const accepted = files.filter(
+                    (file) => PHOTO_TYPES.has(file.type) && file.size <= MAX_PHOTO_BYTES,
+                  );
+                  if (accepted.length !== files.length) {
+                    setError(t("business.photo_type"));
+                  }
+                  setPicked((current) => {
+                    const room = MAX_PHOTOS - current.length;
+                    const next = accepted.slice(0, room).map((file) => ({
+                      file,
+                      url: URL.createObjectURL(file),
+                    }));
+                    return [...current, ...next];
+                  });
+                }}
+              />
+            </label>
+          ) : (
+            <p className="mt-3 text-sm text-muted">{t("business.photo_limit")}</p>
+          )}
+        </fieldset>
+      ) : null}
       {error ? (
         <p className="text-sm text-[#EF4444]" role="alert">
           {error}
