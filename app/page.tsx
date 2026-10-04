@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { PaidReviewBanners } from "./components/paid-review-banners";
+import { SiteFooter } from "./components/site-footer";
 import { SiteHeader } from "./components/site-header";
 import { useI18n } from "@/lib/i18n";
 
@@ -65,6 +66,7 @@ export default function Home() {
           </div>
         </section>
       </main>
+      <SiteFooter />
     </div>
   );
 }
