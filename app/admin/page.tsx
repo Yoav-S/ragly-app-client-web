@@ -8,6 +8,7 @@ import { BusinessDetails } from "../components/business-details";
 import { BusinessDirectory } from "../components/business-directory";
 import { BusinessForm } from "../components/business-form";
 import { ReviewQueue } from "../components/review-queue";
+import { StoreReviewQueue } from "../components/store-review-queue";
 import { apiGet, apiPost } from "@/lib/api";
 import {
   businessImages,
@@ -15,7 +16,9 @@ import {
   type BusinessCounts,
   type BusinessPage,
   type BusinessSession,
+  type StoreReview,
 } from "@/lib/business";
+import { signedInThisTab } from "@/lib/auth";
 import { errorMessage } from "@/lib/errors";
 import { auth } from "@/lib/firebase";
 import { useI18n } from "@/lib/i18n";
@@ -38,6 +41,7 @@ export default function AdminPage() {
   const [busyId, setBusyId] = useState("");
   const [tab, setTab] = useState<"businesses" | "reviews" | "add">("businesses");
   const [notice, setNotice] = useState("");
+  const [stores, setStores] = useState<StoreReview[]>([]);
   const pendingSkip = useRef(0);
   const recentSkip = useRef(0);
   const queueLoading = useRef(false);
@@ -70,6 +74,13 @@ export default function AdminPage() {
     }
   }, []);
 
+  const loadStores = useCallback(async () => {
+    const user = auth.currentUser;
+    if (!user) return;
+    const token = await user.getIdToken();
+    setStores(await apiGet<StoreReview[]>("/admin/locations?status=pending_review", token));
+  }, []);
+
   const refreshCounts = useCallback(async () => {
     const user = auth.currentUser;
     if (!user) return;
@@ -78,8 +89,14 @@ export default function AdminPage() {
   }, []);
 
   useEffect(() => {
+    if (!signedInThisTab()) {
+      setReady(false);
+      router.replace("/login");
+      return;
+    }
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (!user) {
+      if (!user || !signedInThisTab()) {
+        setReady(false);
         router.replace("/login");
         return;
       }
@@ -90,15 +107,23 @@ export default function AdminPage() {
           router.replace("/dashboard");
           return;
         }
-        await Promise.all([refreshCounts(), loadQueue("pending", true), loadQueue("recent", true)]);
+        await Promise.all([
+          refreshCounts(),
+          loadQueue("pending", true),
+          loadQueue("recent", true),
+        ]);
+        try {
+          await loadStores();
+        } catch (storeError: unknown) {
+          setError(errorMessage(storeError, t));
+        }
         setReady(true);
       } catch (err: unknown) {
         setError(errorMessage(err, t));
-        setReady(true);
       }
     });
     return unsubscribe;
-  }, [router, t, refreshCounts, loadQueue]);
+  }, [router, t, refreshCounts, loadQueue, loadStores]);
 
   useEffect(() => {
     const node = recentSentinel.current;
@@ -109,6 +134,27 @@ export default function AdminPage() {
     observer.observe(node);
     return () => observer.disconnect();
   }, [recentMore, recent.length, loadQueue]);
+
+  async function decideStore(id: string, action: "approve" | "reject", reason: string) {
+    const user = auth.currentUser;
+    if (!user) return;
+    if (action === "reject" && !reason.trim()) return;
+    setBusyId(id);
+    setError("");
+    try {
+      const token = await user.getIdToken();
+      await apiPost(
+        `/admin/locations/${id}/${action}`,
+        token,
+        action === "reject" ? { reason: reason.trim() } : {},
+      );
+      setStores((current) => current.filter((store) => store.id !== id));
+    } catch (err: unknown) {
+      setError(errorMessage(err, t));
+    } finally {
+      setBusyId("");
+    }
+  }
 
   async function decide(
     id: string,
@@ -141,8 +187,16 @@ export default function AdminPage() {
     }
   }
 
-  if (!ready && !error) {
-    return <main className="mx-auto w-full max-w-5xl flex-1 px-5 py-10" />;
+  if (!ready || !signedInThisTab()) {
+    return (
+      <main className="mx-auto w-full max-w-5xl flex-1 px-5 py-10">
+        {error ? (
+          <p className="text-sm text-[#EF4444]" role="alert">
+            {error}
+          </p>
+        ) : null}
+      </main>
+    );
   }
 
   const openRecent = recent.find((business) => business.id === openRecentId) ?? null;
@@ -180,7 +234,7 @@ export default function AdminPage() {
         </TabButton>
         <TabButton
           active={tab === "reviews"}
-          count={counts.pending}
+          count={counts.pending + stores.length}
           onClick={() => setTab("reviews")}
         >
           {t("admin.tab_reviews")}
@@ -222,6 +276,14 @@ export default function AdminPage() {
         </section>
       ) : (
         <div className="mt-6 grid gap-5">
+          <section className="rounded-3xl border border-line bg-surface p-5">
+            <h2 className="text-lg font-medium text-foreground">{t("admin.stores_waiting")}</h2>
+            <StoreReviewQueue
+              stores={stores}
+              busyId={busyId}
+              onDecide={(id, action, reason) => void decideStore(id, action, reason)}
+            />
+          </section>
           <section>
             <h2 className="text-lg font-medium text-foreground">{t("admin.pending_review")}</h2>
             <ReviewQueue

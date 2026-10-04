@@ -110,6 +110,15 @@ export function StoreList({
             <p className="mt-2 text-sm text-foreground">
               {phoneLine(store) || t("dashboard.shared_phone")}
             </p>
+            {store.status === "pending_review" ? (
+              <p className="mt-2 text-sm text-muted">{t("dashboard.store_pending")}</p>
+            ) : null}
+            {store.status === "rejected" ? (
+              <p className="mt-2 text-sm text-[#EF4444]">
+                {t("dashboard.store_rejected")}
+                {store.rejection_reason ? ` ${store.rejection_reason}` : ""}
+              </p>
+            ) : null}
             {canAdd && stores.length > 1 ? (
               <button
                 type="button"

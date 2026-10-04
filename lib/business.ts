@@ -40,6 +40,20 @@ export type StoreLocation = {
   opening_hours: OpeningHours;
   location: GeoLocation;
   phone: string[];
+  status?: "pending_review" | "published" | "rejected";
+  rejection_reason?: string | null;
+};
+
+export type StoreReview = {
+  id: string;
+  business_id: string;
+  business_name: string;
+  address: string;
+  city: string;
+  phone: string[];
+  opening_hours: OpeningHours;
+  status: "pending_review" | "published" | "rejected";
+  rejection_reason: string | null;
 };
 
 export type Invitation = {

@@ -359,7 +359,9 @@ export default function DashboardPage() {
                     className="mt-2 h-11 w-full rounded-2xl border border-line bg-background px-3 text-sm text-foreground outline-none focus:border-brand"
                   >
                     <option value="">{t("dashboard.pick_store")}</option>
-                    {(business.locations ?? []).map((store) => (
+                    {(business.locations ?? [])
+                      .filter((store) => !store.status || store.status === "published")
+                      .map((store) => (
                       <option key={store.id} value={store.id}>
                         {store.address}
                       </option>

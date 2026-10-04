@@ -4,6 +4,7 @@ import { auth } from "./firebase";
 
 const PENDING_EMAIL_KEY = "ragly.pendingEmail";
 const AUTH_INTENT_KEY = "ragly.authIntent";
+const TAB_SIGN_IN_KEY = "ragly.tabSignedIn";
 
 export type AuthIntent = "login" | "register";
 
@@ -44,6 +45,7 @@ export async function verifyOtpAndSignIn(
     { email, otp },
   );
   await signInWithCustomToken(auth, custom_token);
+  sessionStorage.setItem(TAB_SIGN_IN_KEY, "1");
   clearPendingAuth();
   const token = await auth.currentUser?.getIdToken();
   if (!token) {
@@ -52,6 +54,19 @@ export async function verifyOtpAndSignIn(
   return apiPost<UserProfile>("/users/me", token, {});
 }
 
+export function signedInThisTab(): boolean {
+  try {
+    return sessionStorage.getItem(TAB_SIGN_IN_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
 export async function signOutAccount(): Promise<void> {
+  try {
+    sessionStorage.removeItem(TAB_SIGN_IN_KEY);
+  } catch {
+    // Private mode can block storage. Signing out of Firebase still ends the session.
+  }
   await signOut(auth);
 }
