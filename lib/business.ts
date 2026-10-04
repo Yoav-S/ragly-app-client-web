@@ -29,13 +29,27 @@ export type GeoLocation = {
   coordinates: [number, number];
 };
 
+export type MemberRole = "owner" | "branch_owner" | "lead" | "worker";
+
+export type StoreLocation = {
+  id: string;
+  business_id: string;
+  address: string;
+  city: string;
+  timezone: string;
+  opening_hours: OpeningHours;
+  location: GeoLocation;
+  phone: string[];
+};
+
 export type Invitation = {
   id: string;
   business_id: string;
   business_name: string;
   email: string;
-  role: "owner" | "worker";
+  role: MemberRole;
   status: "pending" | "approved" | "declined";
+  location_id?: string | null;
 };
 
 export type Business = {
@@ -61,6 +75,13 @@ export type Business = {
   rejection_reason: string | null;
   field_errors: Record<string, string>;
   invitations: Invitation[];
+  locations?: StoreLocation[];
+};
+
+export type BusinessMembership = {
+  business: Business;
+  role: MemberRole;
+  location_id: string | null;
 };
 
 export function businessImages(business: { photo: string | null; photos?: string[] }): string[] {
@@ -86,7 +107,8 @@ export type BusinessPage = {
 export type BusinessSession = {
   is_ragly_admin: boolean;
   business: Business | null;
-  role: "owner" | "worker" | null;
+  businesses?: BusinessMembership[];
+  role: MemberRole | null;
   invitations: Invitation[];
 };
 

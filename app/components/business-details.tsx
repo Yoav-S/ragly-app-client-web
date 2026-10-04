@@ -54,6 +54,20 @@ export function BusinessDetails({
             ))}
           </span>
         </Fact>
+        {(business.locations ?? []).length > 0 ? (
+          <div className="sm:col-span-2">
+            <Fact label={t("dashboard.stores")}>
+              <span className="grid gap-2">
+                {business.locations?.map((store) => (
+                  <span key={store.id}>
+                    {store.address}, {store.city}
+                    {store.phone.length ? ` · ${store.phone.join(", ")}` : ""}
+                  </span>
+                ))}
+              </span>
+            </Fact>
+          </div>
+        ) : null}
         <Fact label={t("business.address")}>
           {business.address}
           {business.location ? (

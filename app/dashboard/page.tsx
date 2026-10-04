@@ -7,12 +7,15 @@ import { AccountBar } from "../components/account-bar";
 import { BusinessDetails } from "../components/business-details";
 import { BusinessForm } from "../components/business-form";
 import { BusinessEditor } from "../components/business-editor";
+import { StoreList } from "../components/store-list";
 import { apiDelete, apiGet, apiPost, type UserProfile } from "@/lib/api";
 import { auth } from "@/lib/firebase";
 import {
   type Business,
+  type BusinessMembership,
   type BusinessSession,
   type Invitation,
+  type MemberRole,
 } from "@/lib/business";
 import { errorMessage } from "@/lib/errors";
 import { useI18n } from "@/lib/i18n";
@@ -37,17 +40,27 @@ function fieldLabel(field: string): string {
   return FIELD_LABEL[field] ?? field;
 }
 
+function roleLabel(role: string): string {
+  if (role === "branch_owner") return "admin.role_branch_owner";
+  if (role === "lead") return "admin.role_lead";
+  if (role === "worker") return "admin.role_worker";
+  return "admin.role_owner";
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const { t } = useI18n();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [business, setBusiness] = useState<Business | null>(null);
-  const [role, setRole] = useState<"owner" | "worker" | null>(null);
+  const [memberships, setMemberships] = useState<BusinessMembership[]>([]);
+  const [addingBusiness, setAddingBusiness] = useState(false);
+  const [role, setRole] = useState<MemberRole | null>(null);
+  const [inviteLocation, setInviteLocation] = useState("");
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState("");
   const [memberEmail, setMemberEmail] = useState("");
-  const [memberRole, setMemberRole] = useState<"owner" | "worker">("worker");
+  const [memberRole, setMemberRole] = useState<MemberRole>("worker");
   const [teamNotice, setTeamNotice] = useState("");
 
   async function load(token: string) {
@@ -59,9 +72,15 @@ export default function DashboardPage() {
       router.replace("/admin");
       return;
     }
+    const rows = session.businesses?.length
+      ? session.businesses
+      : session.business
+        ? [{ business: session.business, role: session.role ?? "owner", location_id: null }]
+        : [];
     setProfile(me);
-    setBusiness(session.business);
-    setRole(session.role);
+    setMemberships(rows);
+    setBusiness(rows[0]?.business ?? null);
+    setRole(rows[0]?.role ?? null);
     setInvitations(session.invitations ?? []);
     setReady(true);
   }
@@ -106,7 +125,11 @@ export default function DashboardPage() {
       const invitation = await apiPost<Invitation>(
         `/businesses/${business.id}/invitations`,
         token,
-        { email: memberEmail.trim().toLowerCase(), role: memberRole },
+        {
+          email: memberEmail.trim().toLowerCase(),
+          role: memberRole,
+          location_id: memberRole === "owner" ? null : inviteLocation || null,
+        },
       );
       setBusiness({
         ...business,
@@ -148,7 +171,7 @@ export default function DashboardPage() {
           </h2>
           <p className="mt-2 text-sm text-muted">
             {t("dashboard.invite_body", {
-              role: t(invitation.role === "owner" ? "admin.role_owner" : "admin.role_worker"),
+              role: t(roleLabel(invitation.role)),
             })}
           </p>
           <div className="mt-4 flex flex-col gap-3 sm:flex-row">
@@ -169,12 +192,62 @@ export default function DashboardPage() {
           </div>
         </section>
       ))}
-      {profile && ready && !business && invitations.length === 0 ? (
+      {profile && ready && memberships.length === 0 && !addingBusiness && invitations.length === 0 ? (
         <>
           <p className="mt-6 text-sm text-muted">{profile.email}</p>
           <p className="mt-3 text-sm text-muted">{t("dashboard.empty")}</p>
           <BusinessForm onSubmitted={setBusiness} />
         </>
+      ) : null}
+      {memberships.length > 0 ? (
+        <section className="mt-8 grid gap-3">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-lg font-medium text-foreground">{t("dashboard.your_businesses")}</h2>
+            <button
+              type="button"
+              onClick={() => setAddingBusiness((value) => !value)}
+              className="text-sm font-medium text-brand"
+            >
+              {t("dashboard.add_business")}
+            </button>
+          </div>
+          <ul className="grid gap-2">
+            {memberships.map((item) => (
+              <li key={item.business.id}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBusiness(item.business);
+                    setRole(item.role);
+                  }}
+                  className={`flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-left ${
+                    business?.id === item.business.id ? "border-brand bg-surface" : "border-line bg-background"
+                  }`}
+                >
+                  <span>
+                    <span className="block text-sm font-medium text-foreground">{item.business.name}</span>
+                    <span className="mt-1 block text-sm text-muted">
+                      {t("dashboard.store_count", { n: String(item.business.locations?.length || 1) })}
+                      {" · "}
+                      {t(roleLabel(item.role))}
+                    </span>
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+      {addingBusiness ? (
+        <BusinessForm
+          onSubmitted={(created) => {
+            const next = { business: created, role: "owner" as const, location_id: null };
+            setMemberships((current) => [...current, next]);
+            setBusiness(created);
+            setRole("owner");
+            setAddingBusiness(false);
+          }}
+        />
       ) : null}
       {business ? (
         <section className="mt-8 rounded-2xl border border-line bg-surface p-6">
@@ -183,7 +256,7 @@ export default function DashboardPage() {
           </p>
           {role ? (
             <p className="mt-2 text-sm text-muted">
-              {t("dashboard.your_role")}: {t(role === "owner" ? "admin.role_owner" : "admin.role_worker")}
+              {t("dashboard.your_role")}: {t(roleLabel(role))}
             </p>
           ) : null}
           {business.status === "pending_review" ? (
@@ -208,13 +281,22 @@ export default function DashboardPage() {
             </div>
           ) : null}
           <div className="mt-6">
-            {role === "owner" && business.status !== "rejected" ? (
-              <BusinessEditor business={business} scope="owner" onChanged={setBusiness} />
+            {role === "owner" && business.status !== "pending_review" ? (
+              <BusinessEditor
+                business={business}
+                scope="owner"
+                onChanged={(next) => {
+                  setBusiness(next);
+                  setMemberships((current) =>
+                    current.map((item) => (item.business.id === next.id ? { ...item, business: next } : item)),
+                  );
+                }}
+              />
             ) : (
               <BusinessDetails business={business} />
             )}
           </div>
-          {role === "owner" ? (
+          {role === "owner" && business.status !== "pending_review" ? (
             <div className="mt-6 flex flex-col gap-3 sm:flex-row">
               <button
                 type="button"
@@ -225,7 +307,20 @@ export default function DashboardPage() {
               </button>
             </div>
           ) : null}
-          {role === "owner" ? (
+          {(role === "owner" && business.status !== "pending_review") || role === "branch_owner" || role === "lead" ? (
+            <StoreList
+              business={business}
+              canAdd={role === "owner"}
+              token={async () => (await auth.currentUser?.getIdToken()) ?? ""}
+              onChanged={(next) => {
+                setBusiness(next);
+                setMemberships((current) =>
+                  current.map((item) => (item.business.id === next.id ? { ...item, business: next } : item)),
+                );
+              }}
+            />
+          ) : null}
+          {(role === "owner" && business.status !== "pending_review") || role === "branch_owner" || role === "lead" ? (
             <form onSubmit={inviteMember} className="mt-8 grid gap-3 border-t border-line pt-6">
               <h2 className="text-lg font-medium text-foreground">{t("dashboard.team")}</h2>
               <p className="text-sm text-muted">{t("dashboard.team_hint")}</p>
@@ -246,10 +341,32 @@ export default function DashboardPage() {
                   onChange={(event) => setMemberRole(event.target.value as "owner" | "worker")}
                   className="mt-2 h-11 w-full rounded-2xl border border-line bg-background px-3 text-sm text-foreground outline-none focus:border-brand"
                 >
-                  <option value="owner">{t("admin.role_owner")}</option>
+                  {role === "owner" ? <option value="owner">{t("admin.role_owner")}</option> : null}
+                  {role === "owner" ? (
+                    <option value="branch_owner">{t("admin.role_branch_owner")}</option>
+                  ) : null}
+                  <option value="lead">{t("admin.role_lead")}</option>
                   <option value="worker">{t("admin.role_worker")}</option>
                 </select>
               </label>
+              {memberRole !== "owner" ? (
+                <label className="block text-sm text-muted">
+                  {t("dashboard.store")}
+                  <select
+                    required
+                    value={inviteLocation}
+                    onChange={(event) => setInviteLocation(event.target.value)}
+                    className="mt-2 h-11 w-full rounded-2xl border border-line bg-background px-3 text-sm text-foreground outline-none focus:border-brand"
+                  >
+                    <option value="">{t("dashboard.pick_store")}</option>
+                    {(business.locations ?? []).map((store) => (
+                      <option key={store.id} value={store.id}>
+                        {store.address}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
               {teamNotice ? <p className="text-sm text-brand">{teamNotice}</p> : null}
               <button
                 type="submit"
@@ -261,16 +378,13 @@ export default function DashboardPage() {
                 {(business.invitations ?? []).map((invitation) => (
                   <li key={invitation.id} className="flex items-center justify-between gap-3 text-sm">
                     <span>
-                      {invitation.email} · {t(invitation.role === "owner" ? "admin.role_owner" : "admin.role_worker")}
+                      {invitation.email} · {t(roleLabel(invitation.role))}
                     </span>
                     <span className="text-muted">{t(`admin.${invitation.status}`)}</span>
                   </li>
                 ))}
               </ul>
             </form>
-          ) : null}
-          {business.status === "rejected" && role !== "worker" ? (
-            <BusinessForm initial={business} onSubmitted={setBusiness} />
           ) : null}
         </section>
       ) : null}
