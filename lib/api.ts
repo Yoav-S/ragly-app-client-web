@@ -103,6 +103,9 @@ export function apiDeleteJson<T>(path: string, token: string, body: unknown): Pr
 export type UserProfile = {
   id: string;
   email: string;
+  name?: string | null;
+  phone?: string | null;
+  photo_url?: string | null;
   auth_provider: "email" | "google";
   email_verified: boolean;
   has_pets: boolean;

@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import { ConfirmModal } from "./confirm-modal";
 import { apiDelete, apiPost } from "@/lib/api";
 import type { Business, OpeningHours, StoreLocation } from "@/lib/business";
 import { useI18n } from "@/lib/i18n";
@@ -52,9 +53,15 @@ export function StoreList({
   const [saturdayClose, setSaturdayClose] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [confirming, setConfirming] = useState(false);
 
-  async function addStore(event: FormEvent) {
+  function requestAdd(event: FormEvent) {
     event.preventDefault();
+    if (saving) return;
+    setConfirming(true);
+  }
+
+  async function addStore() {
     if (saving) return;
     setSaving(true);
     setError("");
@@ -134,7 +141,7 @@ export function StoreList({
       {error ? <p className="text-sm text-[#EF4444]">{error}</p> : null}
       {canAdd ? (
         open ? (
-          <form onSubmit={(event) => void addStore(event)} className="grid gap-3 rounded-2xl border border-line p-4">
+          <form onSubmit={requestAdd} className="grid gap-3 rounded-2xl border border-line p-4">
             <label className="text-sm text-muted">
               {t("business.address")}
               <input className={fieldClass} required value={address} onChange={(event) => setAddress(event.target.value)} />
@@ -153,6 +160,7 @@ export function StoreList({
                 <input className={fieldClass} required inputMode="decimal" value={longitude} onChange={(event) => setLongitude(event.target.value)} />
               </label>
             </div>
+            <p className="text-sm text-muted">{t("dashboard.map_hint")}</p>
             <label className="text-sm text-muted">
               {t("dashboard.store_phone")}
               <input className={fieldClass} value={phone} onChange={(event) => setPhone(event.target.value)} placeholder={t("dashboard.store_phone_hint")} />
@@ -166,7 +174,16 @@ export function StoreList({
                 {t("dashboard.weekday_close")}
                 <input className={fieldClass} type="time" value={weekdayClose} onChange={(event) => setWeekdayClose(event.target.value)} />
               </label>
+              <label className="text-sm text-muted">
+                {t("dashboard.saturday_open")}
+                <input className={fieldClass} type="time" value={saturdayOpen} onChange={(event) => setSaturdayOpen(event.target.value)} />
+              </label>
+              <label className="text-sm text-muted">
+                {t("dashboard.saturday_close")}
+                <input className={fieldClass} type="time" value={saturdayClose} onChange={(event) => setSaturdayClose(event.target.value)} />
+              </label>
             </div>
+            <p className="text-sm text-muted">{t("dashboard.saturday_hint")}</p>
             <button
               type="submit"
               disabled={saving}
@@ -185,6 +202,19 @@ export function StoreList({
           </button>
         )
       ) : null}
+      <ConfirmModal
+        open={confirming}
+        title={t("dashboard.store_submit_title")}
+        body={t("dashboard.store_submit_body")}
+        confirmLabel={t("dashboard.add_store")}
+        cancelLabel={t("dashboard.keep_editing")}
+        pending={saving}
+        onCancel={() => setConfirming(false)}
+        onConfirm={() => {
+          setConfirming(false);
+          void addStore();
+        }}
+      />
     </section>
   );
 }

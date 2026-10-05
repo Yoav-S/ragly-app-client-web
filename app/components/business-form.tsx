@@ -11,6 +11,7 @@ import {
   type OpeningHours,
   type Weekday,
 } from "@/lib/business";
+import { ConfirmModal } from "./confirm-modal";
 import { errorMessage } from "@/lib/errors";
 import { useI18n } from "@/lib/i18n";
 
@@ -128,6 +129,7 @@ export function BusinessForm({
   const [picked, setPicked] = useState<PickedPhoto[]>([]);
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
+  const [confirming, setConfirming] = useState(false);
 
   const pickedRef = useRef(picked);
   pickedRef.current = picked;
@@ -155,8 +157,7 @@ export function BusinessForm({
     }) &&
     (mode !== "admin" || !ownerEmail.trim() || EMAIL_PATTERN.test(ownerEmail.trim()));
 
-  async function onSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function send() {
     if (!valid || pending) return;
     const user = auth.currentUser;
     if (!user) return;
@@ -222,7 +223,18 @@ export function BusinessForm({
     }
   }
 
+  function onSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!valid || pending) return;
+    if (mode === "owner") {
+      setConfirming(true);
+      return;
+    }
+    void send();
+  }
+
   return (
+    <>
     <form
       onSubmit={onSubmit}
       className={mode === "owner" ? "mt-8 grid gap-5" : "grid gap-5"}
@@ -451,5 +463,19 @@ export function BusinessForm({
             : t("business.submit")}
       </button>
     </form>
+    <ConfirmModal
+      open={confirming}
+      title={t("dashboard.submit_title")}
+      body={t("dashboard.submit_body")}
+      confirmLabel={t("business.submit")}
+      cancelLabel={t("dashboard.keep_editing")}
+      pending={pending}
+      onCancel={() => setConfirming(false)}
+      onConfirm={() => {
+        setConfirming(false);
+        void send();
+      }}
+    />
+    </>
   );
 }

@@ -3,10 +3,12 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { onAuthStateChanged } from "firebase/auth";
-import { AccountBar } from "../components/account-bar";
 import { BusinessDetails } from "../components/business-details";
 import { BusinessForm } from "../components/business-form";
 import { BusinessEditor } from "../components/business-editor";
+import { ConfirmModal } from "../components/confirm-modal";
+import { NameGate } from "../components/name-gate";
+import { OwnerHeader } from "../components/owner-header";
 import { StoreList } from "../components/store-list";
 import { apiDelete, apiGet, apiPost, type UserProfile } from "@/lib/api";
 import { auth } from "@/lib/firebase";
@@ -40,6 +42,15 @@ function fieldLabel(field: string): string {
   return FIELD_LABEL[field] ?? field;
 }
 
+type OwnerReview = {
+  id: string;
+  author_name: string;
+  author_photo?: string | null;
+  rating: number;
+  comment?: string | null;
+  created_at: string;
+};
+
 function roleLabel(role: string): string {
   if (role === "branch_owner") return "admin.role_branch_owner";
   if (role === "lead") return "admin.role_lead";
@@ -62,6 +73,10 @@ export default function DashboardPage() {
   const [memberEmail, setMemberEmail] = useState("");
   const [memberRole, setMemberRole] = useState<MemberRole>("worker");
   const [teamNotice, setTeamNotice] = useState("");
+  const [tab, setTab] = useState<"business" | "reviews" | "store">("business");
+  const [reviews, setReviews] = useState<OwnerReview[]>([]);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   async function load(token: string) {
     const [me, session] = await Promise.all([
@@ -100,6 +115,30 @@ export default function DashboardPage() {
     });
     return unsubscribe;
   }, [router, t]);
+
+  useEffect(() => {
+    if (tab !== "reviews" || !business || business.status !== "published") {
+      setReviews([]);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const user = auth.currentUser;
+      if (!user) return;
+      try {
+        const rows = await apiGet<OwnerReview[]>(
+          `/businesses/${business.id}/reviews`,
+          await user.getIdToken(),
+        );
+        if (!cancelled) setReviews(rows);
+      } catch (err: unknown) {
+        if (!cancelled) setError(errorMessage(err, t));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [tab, business, t]);
 
   async function respond(invitation: Invitation, action: "approve" | "decline") {
     const user = auth.currentUser;
@@ -144,21 +183,49 @@ export default function DashboardPage() {
 
   async function removeBusiness() {
     const user = auth.currentUser;
-    if (!user || !business) return;
+    if (!user || !business || deleting) return;
+    setDeleting(true);
     setError("");
     try {
       const token = await user.getIdToken();
       await apiDelete(`/businesses/${business.id}`, token);
-      setBusiness(null);
-      setRole(null);
+      const rest = memberships.filter((item) => item.business.id !== business.id);
+      setMemberships(rest);
+      setBusiness(rest[0]?.business ?? null);
+      setRole(rest[0]?.role ?? null);
+      setDeleteOpen(false);
     } catch (err: unknown) {
       setError(errorMessage(err, t));
+    } finally {
+      setDeleting(false);
     }
   }
 
+  if (!ready) {
+    return <main className="mx-auto w-full max-w-5xl flex-1 px-5 py-10" />;
+  }
+
+  if (!profile) {
+    return (
+      <main className="mx-auto w-full max-w-5xl flex-1 px-5 py-10">
+        {error ? (
+          <p className="text-sm text-[#EF4444]" role="alert">
+            {error}
+          </p>
+        ) : null}
+      </main>
+    );
+  }
+
+  if (!profile.name?.trim()) {
+    return <NameGate onSaved={setProfile} />;
+  }
+
+  const canAddStore = role === "owner" && business?.status === "published";
+
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-5 py-12">
-      <AccountBar title={t("dashboard.account")} />
+    <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col px-5 py-10">
+      {profile ? <OwnerHeader profile={profile} /> : null}
       {error ? (
         <p className="mt-8 text-sm text-[#EF4444]" role="alert">
           {error}
@@ -192,14 +259,44 @@ export default function DashboardPage() {
           </div>
         </section>
       ))}
-      {profile && ready && memberships.length === 0 && !addingBusiness && invitations.length === 0 ? (
+      {error ? (
+        <p className="mt-4 text-sm text-[#EF4444]" role="alert">
+          {error}
+        </p>
+      ) : null}
+      <div className="mt-8 flex gap-6 border-b border-line">
+        {(
+          [
+            ["business", "dashboard.tab_business"],
+            ["reviews", "dashboard.tab_reviews"],
+            ["store", "dashboard.tab_store"],
+          ] as const
+        ).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setTab(id)}
+            className={`border-b-2 pb-3 text-sm font-medium ${
+              tab === id ? "border-brand text-brand" : "border-transparent text-muted"
+            }`}
+          >
+            {t(label)}
+          </button>
+        ))}
+      </div>
+      {tab === "business" && memberships.length === 0 ? (
         <>
-          <p className="mt-6 text-sm text-muted">{profile.email}</p>
-          <p className="mt-3 text-sm text-muted">{t("dashboard.empty")}</p>
-          <BusinessForm onSubmitted={setBusiness} />
+          <p className="mt-6 text-sm text-muted">{t("dashboard.empty")}</p>
+          <BusinessForm
+            onSubmitted={(created) => {
+              setMemberships([{ business: created, role: "owner", location_id: null }]);
+              setBusiness(created);
+              setRole("owner");
+            }}
+          />
         </>
       ) : null}
-      {memberships.length > 0 ? (
+      {tab === "business" && memberships.length > 0 ? (
         <section className="mt-8 grid gap-3">
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-lg font-medium text-foreground">{t("dashboard.your_businesses")}</h2>
@@ -229,7 +326,7 @@ export default function DashboardPage() {
                     <span className="mt-1 block text-sm text-muted">
                       {t("dashboard.store_count", { n: String(item.business.locations?.length || 1) })}
                       {" · "}
-                      {t(roleLabel(item.role))}
+                      {item.role ? t(roleLabel(item.role)) : t("business.pending")}
                     </span>
                   </span>
                 </button>
@@ -238,7 +335,7 @@ export default function DashboardPage() {
           </ul>
         </section>
       ) : null}
-      {addingBusiness ? (
+      {tab === "business" && addingBusiness ? (
         <BusinessForm
           onSubmitted={(created) => {
             const next = { business: created, role: "owner" as const, location_id: null };
@@ -249,7 +346,7 @@ export default function DashboardPage() {
           }}
         />
       ) : null}
-      {business ? (
+      {tab === "business" && business ? (
         <section className="mt-8 rounded-2xl border border-line bg-surface p-6">
           <p className="text-sm font-medium text-brand">
             {t(`business.${business.status === "pending_review" ? "pending" : business.status}`)}
@@ -300,25 +397,12 @@ export default function DashboardPage() {
             <div className="mt-6 flex flex-col gap-3 sm:flex-row">
               <button
                 type="button"
-                onClick={() => void removeBusiness()}
+                onClick={() => setDeleteOpen(true)}
                 className="inline-flex h-11 items-center justify-center rounded-2xl border border-line px-4 text-sm font-medium text-[#EF4444]"
               >
                 {t("dashboard.delete")}
               </button>
             </div>
-          ) : null}
-          {(role === "owner" && business.status !== "pending_review") || role === "branch_owner" || role === "lead" ? (
-            <StoreList
-              business={business}
-              canAdd={role === "owner"}
-              token={async () => (await auth.currentUser?.getIdToken()) ?? ""}
-              onChanged={(next) => {
-                setBusiness(next);
-                setMemberships((current) =>
-                  current.map((item) => (item.business.id === next.id ? { ...item, business: next } : item)),
-                );
-              }}
-            />
           ) : null}
           {(role === "owner" && business.status !== "pending_review") || role === "branch_owner" || role === "lead" ? (
             <form onSubmit={inviteMember} className="mt-8 grid gap-3 border-t border-line pt-6">
@@ -390,6 +474,73 @@ export default function DashboardPage() {
           ) : null}
         </section>
       ) : null}
+      {tab === "reviews" ? (
+        <section className="mt-8">
+          {!business ? (
+            <p className="text-sm text-muted">{t("dashboard.reviews_need_business")}</p>
+          ) : business.status !== "published" ? (
+            <p className="text-sm text-muted">{t("dashboard.reviews_after_publish")}</p>
+          ) : reviews.length === 0 ? (
+            <p className="text-sm text-muted">{t("dashboard.reviews_empty")}</p>
+          ) : (
+            <ul className="grid gap-3">
+              {reviews.map((review) => (
+                <li key={review.id} className="rounded-2xl border border-line bg-surface p-4">
+                  <div className="flex items-center gap-3">
+                    {review.author_photo ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={review.author_photo} alt="" className="h-10 w-10 rounded-full object-cover" />
+                    ) : (
+                      <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#EEF3F2] text-sm font-medium text-brand">
+                        {review.author_name.slice(0, 1).toUpperCase()}
+                      </span>
+                    )}
+                    <div>
+                      <p className="text-sm font-medium text-foreground">{review.author_name}</p>
+                      <p className="text-sm text-brand">{"★".repeat(review.rating)}</p>
+                    </div>
+                  </div>
+                  {review.comment ? (
+                    <p className="mt-3 text-sm leading-6 text-foreground">{review.comment}</p>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      ) : null}
+      {tab === "store" ? (
+        <section className="mt-8">
+          {!business ? (
+            <p className="text-sm text-muted">{t("dashboard.store_need_business")}</p>
+          ) : !canAddStore ? (
+            <p className="text-sm text-muted">{t("dashboard.store_after_publish")}</p>
+          ) : (
+            <StoreList
+              business={business}
+              canAdd
+              token={async () => (await auth.currentUser?.getIdToken()) ?? ""}
+              onChanged={(next) => {
+                setBusiness(next);
+                setMemberships((current) =>
+                  current.map((item) => (item.business.id === next.id ? { ...item, business: next } : item)),
+                );
+              }}
+            />
+          )}
+        </section>
+      ) : null}
+      <ConfirmModal
+        open={deleteOpen}
+        title={t("dashboard.delete_title")}
+        body={t("dashboard.delete_body")}
+        confirmLabel={t("dashboard.delete")}
+        cancelLabel={t("dashboard.keep")}
+        danger
+        pending={deleting}
+        onCancel={() => setDeleteOpen(false)}
+        onConfirm={() => void removeBusiness()}
+      />
     </main>
   );
 }

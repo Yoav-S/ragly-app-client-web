@@ -27,15 +27,11 @@ body {
 
 .fade-in {
   opacity: 0;
-  transform: translateY(18px);
-  transition:
-    opacity 700ms ease,
-    transform 700ms ease;
+  transition: opacity 700ms ease;
 }
 
 .fade-in-shown {
   opacity: 1;
-  transform: translateY(0);
 }
 
 @media (prefers-reduced-motion: reduce) {
