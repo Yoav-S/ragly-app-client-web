@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 import { ConfirmModal } from "./confirm-modal";
 import { apiDelete, apiPost } from "@/lib/api";
+import { cleanPhone, parseCoordinate } from "@/lib/contact";
 import type { Business, OpeningHours, StoreLocation } from "@/lib/business";
 import { useI18n } from "@/lib/i18n";
 
@@ -58,6 +59,24 @@ export function StoreList({
   function requestAdd(event: FormEvent) {
     event.preventDefault();
     if (saving) return;
+    if (phone.trim() && !cleanPhone(phone)) {
+      setError(t("business.fix_phone_format"));
+      return;
+    }
+    const latitudeNumber = parseCoordinate(latitude);
+    const longitudeNumber = parseCoordinate(longitude);
+    if (
+      !Number.isFinite(latitudeNumber) ||
+      latitudeNumber < -90 ||
+      latitudeNumber > 90 ||
+      !Number.isFinite(longitudeNumber) ||
+      longitudeNumber < -180 ||
+      longitudeNumber > 180
+    ) {
+      setError(t("business.fix_location_range"));
+      return;
+    }
+    setError("");
     setConfirming(true);
   }
 
@@ -76,9 +95,9 @@ export function StoreList({
           opening_hours: hours(weekdayOpen, weekdayClose, saturdayOpen, saturdayClose),
           location: {
             type: "Point",
-            coordinates: [Number(longitude), Number(latitude)],
+            coordinates: [parseCoordinate(longitude), parseCoordinate(latitude)],
           },
-          phone: phone.trim() ? [phone.trim()] : [],
+          phone: cleanPhone(phone) ? [cleanPhone(phone) as string] : [],
         },
       );
       onChanged({ ...business, locations: [...stores, saved] });
@@ -163,7 +182,8 @@ export function StoreList({
             <p className="text-sm text-muted">{t("dashboard.map_hint")}</p>
             <label className="text-sm text-muted">
               {t("dashboard.store_phone")}
-              <input className={fieldClass} value={phone} onChange={(event) => setPhone(event.target.value)} placeholder={t("dashboard.store_phone_hint")} />
+              <input className={fieldClass} value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="+972 522 723 686" />
+              <span className="mt-2 block">{t("business.phone_hint")}</span>
             </label>
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="text-sm text-muted">

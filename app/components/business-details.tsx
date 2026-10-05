@@ -47,11 +47,17 @@ export function BusinessDetails({
         </Fact>
         <Fact label={t("business.phones")}>
           <span className="grid gap-1">
-            {business.phone.map((phone) => (
-              <a key={phone} href={`tel:${phone.replace(/\s/g, "")}`} className="text-brand">
-                {phone}
-              </a>
-            ))}
+            {business.phone.map((phone) => {
+              const compact = phone.replace(/[^\d+]/g, "");
+              const href = /^\+?\d{7,15}$/.test(compact) ? `tel:${compact}` : null;
+              return href ? (
+                <a key={phone} href={href} className="text-brand">
+                  {phone}
+                </a>
+              ) : (
+                <span key={phone}>{phone}</span>
+              );
+            })}
           </span>
         </Fact>
         {(business.locations ?? []).length > 0 ? (
@@ -80,9 +86,13 @@ export function BusinessDetails({
         {business.email ? <Fact label={t("business.email")}>{business.email}</Fact> : null}
         {business.website ? (
           <Fact label={t("business.website")}>
-            <a href={business.website} target="_blank" rel="noreferrer" className="break-all text-brand">
-              {business.website}
-            </a>
+            {/^https?:\/\//i.test(business.website) ? (
+              <a href={business.website} target="_blank" rel="noreferrer" className="break-all text-brand">
+                {business.website}
+              </a>
+            ) : (
+              <span className="break-all">{business.website}</span>
+            )}
           </Fact>
         ) : null}
         {business.instagram ? (

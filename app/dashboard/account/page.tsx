@@ -10,6 +10,7 @@ import { apiGet, apiPatch, type UserProfile } from "@/lib/api";
 import { signOutAccount } from "@/lib/auth";
 import { auth } from "@/lib/firebase";
 import { errorMessage } from "@/lib/errors";
+import { cleanPhone } from "@/lib/contact";
 import { uploadAccountPhoto } from "@/lib/storage";
 import { useI18n } from "@/lib/i18n";
 
@@ -56,6 +57,11 @@ export default function AccountSettingsPage() {
     const user = auth.currentUser;
     const trimmed = name.trim();
     if (!user || !trimmed || pending) return;
+    if (phone.trim() && !cleanPhone(phone)) {
+      setError(t("business.fix_phone_format"));
+      setNotice("");
+      return;
+    }
     setPending(true);
     setError("");
     setNotice("");
@@ -64,7 +70,7 @@ export default function AccountSettingsPage() {
       const photoUrl = file ? await uploadAccountPhoto(file) : photo;
       const saved = await apiPatch<UserProfile>("/users/me", token, {
         name: trimmed,
-        phone: phone.trim() || null,
+        phone: cleanPhone(phone),
         photo_url: photoUrl,
       });
       setProfile(saved);
@@ -137,8 +143,9 @@ export default function AccountSettingsPage() {
             autoComplete="tel"
             value={phone}
             onChange={(event) => setPhone(event.target.value)}
-            placeholder={t("dashboard.account_phone_hint")}
+            placeholder="+972 522 723 686"
           />
+          <span className="mt-2 block">{t("business.phone_hint")}</span>
         </label>
         <p className="text-sm text-muted">{profile?.email}</p>
         <div className="flex items-center justify-between gap-3">

@@ -12,10 +12,9 @@ import {
   type Weekday,
 } from "@/lib/business";
 import { ConfirmModal } from "./confirm-modal";
+import { cleanEmail, cleanInstagram, cleanPhone, cleanWebsite, parseCoordinate } from "@/lib/contact";
 import { errorMessage } from "@/lib/errors";
 import { useI18n } from "@/lib/i18n";
-
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHOTO_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
 const MAX_PHOTOS = 6;
@@ -62,7 +61,9 @@ function hoursFromForm(
   return hours;
 }
 
-function formIsValid(input: {
+type FormProblem = { id: string; day?: Weekday };
+
+function collectProblems(input: {
   name: string;
   phones: string[];
   email: string;
@@ -70,26 +71,51 @@ function formIsValid(input: {
   address: string;
   timezone: string;
   website: string;
+  instagram: string;
   latitude: string;
   longitude: string;
   alwaysOpen: boolean;
   days: Record<Weekday, DayState>;
-}): boolean {
-  if (!input.name.trim() || !input.city.trim() || !input.address.trim()) return false;
-  if (!input.timezone.trim()) return false;
-  if (!input.phones.some((phone) => phone.trim())) return false;
-  if (input.email.trim() && !EMAIL_PATTERN.test(input.email.trim())) return false;
-  if (input.website.trim() && !/^https?:\/\//.test(input.website.trim())) return false;
-  const latitude = Number(input.latitude);
-  const longitude = Number(input.longitude);
-  if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90) return false;
-  if (!Number.isFinite(longitude) || longitude < -180 || longitude > 180) return false;
-  if (input.alwaysOpen) return true;
-  return DAYS.every((day) => {
-    const row = input.days[day];
-    if (row.closed) return true;
-    return Boolean(row.open && row.close && row.open < row.close);
-  });
+  ownerEmail: string;
+  checkOwnerEmail: boolean;
+}): FormProblem[] {
+  const problems: FormProblem[] = [];
+  if (!input.name.trim()) problems.push({ id: "name" });
+  const filledPhones = input.phones.map((phone) => phone.trim()).filter(Boolean);
+  if (filledPhones.length === 0) problems.push({ id: "phone" });
+  else if (filledPhones.some((phone) => !cleanPhone(phone))) problems.push({ id: "phone_format" });
+  if (!input.city.trim()) problems.push({ id: "city" });
+  if (!input.address.trim()) problems.push({ id: "address" });
+  if (!input.timezone.trim()) problems.push({ id: "timezone" });
+  if (!input.latitude.trim() || !input.longitude.trim()) problems.push({ id: "location" });
+  else {
+    const latitude = parseCoordinate(input.latitude);
+    const longitude = parseCoordinate(input.longitude);
+    if (
+      !Number.isFinite(latitude) ||
+      latitude < -90 ||
+      latitude > 90 ||
+      !Number.isFinite(longitude) ||
+      longitude < -180 ||
+      longitude > 180
+    ) {
+      problems.push({ id: "location_range" });
+    }
+  }
+  if (!input.alwaysOpen) {
+    const badDay = DAYS.find((day) => {
+      const row = input.days[day];
+      return !row.closed && !(row.open && row.close && row.open < row.close);
+    });
+    if (badDay) problems.push({ id: "hours", day: badDay });
+  }
+  if (input.email.trim() && !cleanEmail(input.email)) problems.push({ id: "email" });
+  if (input.website.trim() && !cleanWebsite(input.website)) problems.push({ id: "website" });
+  if (input.instagram.trim() && !cleanInstagram(input.instagram)) problems.push({ id: "instagram" });
+  if (input.checkOwnerEmail && input.ownerEmail.trim() && !cleanEmail(input.ownerEmail)) {
+    problems.push({ id: "owner_email" });
+  }
+  return problems;
 }
 
 const fieldClass =
@@ -128,8 +154,10 @@ export function BusinessForm({
   const [instagram, setInstagram] = useState(initial?.instagram ?? "");
   const [picked, setPicked] = useState<PickedPhoto[]>([]);
   const [error, setError] = useState("");
+  const [problems, setProblems] = useState<FormProblem[]>([]);
   const [pending, setPending] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const problemRef = useRef<HTMLDivElement>(null);
 
   const pickedRef = useRef(picked);
   pickedRef.current = picked;
@@ -140,9 +168,16 @@ export function BusinessForm({
       for (const item of pickedRef.current) URL.revokeObjectURL(item.url);
     };
   }, []);
+  const problemCount = useRef(0);
+  useEffect(() => {
+    if (problems.length > problemCount.current) {
+      problemRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+    problemCount.current = problems.length;
+  }, [problems]);
 
-  const valid =
-    formIsValid({
+  function currentProblems(): FormProblem[] {
+    return collectProblems({
       name,
       phones,
       email,
@@ -150,15 +185,43 @@ export function BusinessForm({
       address,
       timezone,
       website,
+      instagram,
       latitude,
       longitude,
       alwaysOpen,
       days,
-    }) &&
-    (mode !== "admin" || !ownerEmail.trim() || EMAIL_PATTERN.test(ownerEmail.trim()));
+      ownerEmail,
+      checkOwnerEmail: mode === "admin",
+    });
+  }
+
+  function clearProblem(id: string) {
+    setProblems((current) =>
+      current.filter((item) => {
+        if (item.id === id) return false;
+        if (id === "phone" && item.id === "phone_format") return false;
+        if (id === "location" && item.id === "location_range") return false;
+        return true;
+      }),
+    );
+  }
+
+  function box(id: string): string {
+    const bad = problems.some(
+      (item) =>
+        item.id === id ||
+        (id === "phone" && item.id === "phone_format") ||
+        (id === "location" && item.id === "location_range"),
+    );
+    return bad ? fieldClass.replace("border-line", "border-[#EF4444]") : fieldClass;
+  }
 
   async function send() {
-    if (!valid || pending) return;
+    const found = currentProblems();
+    if (found.length || pending) {
+      setProblems(found);
+      return;
+    }
     const user = auth.currentUser;
     if (!user) return;
     setPending(true);
@@ -170,21 +233,21 @@ export function BusinessForm({
           ? { owner_email: ownerEmail.trim().toLowerCase() }
           : {}),
         name: name.trim(),
-        phone: phones.map((item) => item.trim()).filter(Boolean),
-        email: email.trim() || null,
+        phone: phones.map((item) => cleanPhone(item)).filter((item): item is string => Boolean(item)),
+        email: cleanEmail(email),
         description: description.trim() || null,
         category,
         city: city.trim(),
         address: address.trim(),
         timezone: timezone.trim(),
         opening_hours: hoursFromForm(alwaysOpen, days),
-        website: website.trim() || null,
+        website: cleanWebsite(website),
         location: {
           type: "Point" as const,
-          coordinates: [Number(longitude), Number(latitude)] as [number, number],
+          coordinates: [parseCoordinate(longitude), parseCoordinate(latitude)] as [number, number],
         },
         photo: initial?.photo ?? null,
-        instagram: instagram.trim() || null,
+        instagram: cleanInstagram(instagram),
       };
       const updating = (mode === "edit" || mode === "manage") && initial;
       let saved = updating ? null : createdRef.current;
@@ -225,7 +288,10 @@ export function BusinessForm({
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!valid || pending) return;
+    if (pending) return;
+    const found = currentProblems();
+    setProblems(found);
+    if (found.length) return;
     if (mode === "owner") {
       setConfirming(true);
       return;
@@ -246,31 +312,46 @@ export function BusinessForm({
         <label className="block text-sm text-muted">
           {t("admin.owner_account")} <span>({t("business.optional")})</span>
           <input
-            className={fieldClass}
+            className={box("owner_email")}
             type="email"
             value={ownerEmail}
-            onChange={(event) => setOwnerEmail(event.target.value)}
+            onChange={(event) => {
+              setOwnerEmail(event.target.value);
+              clearProblem("owner_email");
+            }}
           />
           <span className="mt-2 block text-sm">{t("admin.owner_account_hint")}</span>
         </label>
       )}
       <label className="block text-sm text-muted">
-        {t("business.name")}
-        <input className={fieldClass} value={name} required onChange={(event) => setName(event.target.value)} />
+        {t("business.name")} <span>({t("business.required")})</span>
+        <input
+          className={box("name")}
+          value={name}
+          onChange={(event) => {
+            setName(event.target.value);
+            clearProblem("name");
+          }}
+        />
       </label>
       <fieldset className="grid gap-3">
-        <legend className="text-sm text-muted">{t("business.phones")}</legend>
+        <legend className="text-sm text-muted">
+          {t("business.phones")} <span>({t("business.required")})</span>
+        </legend>
+        <p className="text-sm text-muted">{t("business.phone_hint")}</p>
         {phones.map((phone, index) => (
           <input
             key={index}
-            className={fieldClass}
+            className={box("phone")}
             value={phone}
             inputMode="tel"
             autoComplete="tel"
+            placeholder="+972 522 723 686"
             onChange={(event) => {
               const next = [...phones];
               next[index] = event.target.value;
               setPhones(next);
+              clearProblem("phone");
             }}
           />
         ))}
@@ -297,24 +378,50 @@ export function BusinessForm({
         </select>
       </label>
       <label className="block text-sm text-muted">
-        {t("business.city")}
-        <input className={fieldClass} value={city} required onChange={(event) => setCity(event.target.value)} />
+        {t("business.city")} <span>({t("business.required")})</span>
+        <input
+          className={box("city")}
+          value={city}
+          onChange={(event) => {
+            setCity(event.target.value);
+            clearProblem("city");
+          }}
+        />
       </label>
       <label className="block text-sm text-muted">
-        {t("business.address")}
-        <input className={fieldClass} value={address} required onChange={(event) => setAddress(event.target.value)} />
+        {t("business.address")} <span>({t("business.required")})</span>
+        <input
+          className={box("address")}
+          value={address}
+          onChange={(event) => {
+            setAddress(event.target.value);
+            clearProblem("address");
+          }}
+        />
       </label>
       <label className="block text-sm text-muted">
-        {t("business.timezone")}
-        <input className={fieldClass} value={timezone} required onChange={(event) => setTimezone(event.target.value)} />
+        {t("business.timezone")} <span>({t("business.required")})</span>
+        <input
+          className={box("timezone")}
+          value={timezone}
+          onChange={(event) => {
+            setTimezone(event.target.value);
+            clearProblem("timezone");
+          }}
+        />
       </label>
       <fieldset className="grid gap-3 rounded-2xl border border-line bg-surface p-4">
-        <legend className="px-1 text-sm text-muted">{t("business.hours")}</legend>
+        <legend className="px-1 text-sm text-muted">
+          {t("business.hours")} <span>({t("business.required")})</span>
+        </legend>
         <label className="flex items-center gap-2 text-sm text-foreground">
           <input
             type="checkbox"
             checked={alwaysOpen}
-            onChange={(event) => setAlwaysOpen(event.target.checked)}
+            onChange={(event) => {
+              setAlwaysOpen(event.target.checked);
+              clearProblem("hours");
+            }}
           />
           {t("business.always_open")}
         </label>
@@ -329,9 +436,10 @@ export function BusinessForm({
                     <input
                       type="checkbox"
                       checked={row.closed}
-                      onChange={(event) =>
-                        setDays({ ...days, [day]: { ...row, closed: event.target.checked } })
-                      }
+                      onChange={(event) => {
+                        setDays({ ...days, [day]: { ...row, closed: event.target.checked } });
+                        clearProblem("hours");
+                      }}
                     />
                     {t("business.closed")}
                   </label>
@@ -340,18 +448,20 @@ export function BusinessForm({
                     disabled={row.closed}
                     value={row.open}
                     className={fieldClass}
-                    onChange={(event) =>
-                      setDays({ ...days, [day]: { ...row, open: event.target.value } })
-                    }
+                    onChange={(event) => {
+                      setDays({ ...days, [day]: { ...row, open: event.target.value } });
+                      clearProblem("hours");
+                    }}
                   />
                   <input
                     type="time"
                     disabled={row.closed}
                     value={row.close}
                     className={fieldClass}
-                    onChange={(event) =>
-                      setDays({ ...days, [day]: { ...row, close: event.target.value } })
-                    }
+                    onChange={(event) => {
+                      setDays({ ...days, [day]: { ...row, close: event.target.value } });
+                      clearProblem("hours");
+                    }}
                   />
                 </div>
               );
@@ -359,14 +469,31 @@ export function BusinessForm({
       </fieldset>
       <div className="grid gap-5 sm:grid-cols-2">
         <label className="block text-sm text-muted">
-          {t("business.latitude")}
-          <input className={fieldClass} inputMode="decimal" value={latitude} required onChange={(event) => setLatitude(event.target.value)} />
+          {t("business.latitude")} <span>({t("business.required")})</span>
+          <input
+            className={box("location")}
+            inputMode="decimal"
+            value={latitude}
+            onChange={(event) => {
+              setLatitude(event.target.value);
+              clearProblem("location");
+            }}
+          />
         </label>
         <label className="block text-sm text-muted">
-          {t("business.longitude")}
-          <input className={fieldClass} inputMode="decimal" value={longitude} required onChange={(event) => setLongitude(event.target.value)} />
+          {t("business.longitude")} <span>({t("business.required")})</span>
+          <input
+            className={box("location")}
+            inputMode="decimal"
+            value={longitude}
+            onChange={(event) => {
+              setLongitude(event.target.value);
+              clearProblem("location");
+            }}
+          />
         </label>
       </div>
+      <p className="text-sm text-muted">{t("business.location_hint")}</p>
       <label className="block text-sm text-muted">
         {t("business.description")} <span>({t("business.optional")})</span>
         <textarea
@@ -377,15 +504,41 @@ export function BusinessForm({
       </label>
       <label className="block text-sm text-muted">
         {t("business.email")} <span>({t("business.optional")})</span>
-        <input className={fieldClass} type="email" value={email} onChange={(event) => setEmail(event.target.value)} />
+        <input
+          className={box("email")}
+          type="email"
+          value={email}
+          onChange={(event) => {
+            setEmail(event.target.value);
+            clearProblem("email");
+          }}
+        />
       </label>
       <label className="block text-sm text-muted">
         {t("business.website")} <span>({t("business.optional")})</span>
-        <input className={fieldClass} type="url" value={website} onChange={(event) => setWebsite(event.target.value)} />
+        <input
+          className={box("website")}
+          value={website}
+          placeholder="example.com"
+          onChange={(event) => {
+            setWebsite(event.target.value);
+            clearProblem("website");
+          }}
+        />
+        <span className="mt-2 block text-sm">{t("business.website_hint")}</span>
       </label>
       <label className="block text-sm text-muted">
         {t("business.instagram")} <span>({t("business.optional")})</span>
-        <input className={fieldClass} value={instagram} onChange={(event) => setInstagram(event.target.value)} />
+        <input
+          className={box("instagram")}
+          value={instagram}
+          placeholder="@name"
+          onChange={(event) => {
+            setInstagram(event.target.value);
+            clearProblem("instagram");
+          }}
+        />
+        <span className="mt-2 block text-sm">{t("business.instagram_hint")}</span>
       </label>
       {mode === "admin" || mode === "owner" ? (
         <fieldset>
@@ -446,6 +599,20 @@ export function BusinessForm({
           )}
         </fieldset>
       ) : null}
+      {problems.length > 0 ? (
+        <div ref={problemRef} className="rounded-2xl bg-[#FEF2F2] p-4" role="alert">
+          <p className="text-sm font-medium text-[#EF4444]">{t("business.fix_title")}</p>
+          <ul className="mt-2 grid gap-1">
+            {problems.map((item) => (
+              <li key={`${item.id}-${item.day ?? ""}`} className="text-sm text-[#EF4444]">
+                {item.id === "hours"
+                  ? t("business.fix_hours", { day: t(`business.${item.day ?? "mon"}`) })
+                  : t(`business.fix_${item.id}`)}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
       {error ? (
         <p className="text-sm text-[#EF4444]" role="alert">
           {error}
@@ -453,7 +620,7 @@ export function BusinessForm({
       ) : null}
       <button
         type="submit"
-        disabled={!valid || pending}
+        disabled={pending}
         className="inline-flex h-12 items-center justify-center rounded-2xl bg-brand px-5 text-sm font-medium text-white disabled:bg-[#8DB0AA]"
       >
         {mode === "admin"
