@@ -60,7 +60,9 @@
     "confirm": "Verify"
   },
   "dashboard": {
-    "empty": "You have no business yet. Add your business to request a place in the Ragly app.",
+    "empty_title": "No business yet",
+    "empty": "This is where your business will be. Details, stores, and reviews stay here after you publish one.",
+    "empty_action": "Publish a business",
     "sign_out": "Sign out",
     "account": "Account",
     "invite_title": "You are invited to join {name}",

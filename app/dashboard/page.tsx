@@ -73,7 +73,7 @@ export default function DashboardPage() {
   const [memberEmail, setMemberEmail] = useState("");
   const [memberRole, setMemberRole] = useState<MemberRole>("worker");
   const [teamNotice, setTeamNotice] = useState("");
-  const [tab, setTab] = useState<"business" | "reviews" | "store">("business");
+  const [tab, setTab] = useState<"business" | "reviews">("business");
   const [reviews, setReviews] = useState<OwnerReview[]>([]);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -259,17 +259,11 @@ export default function DashboardPage() {
           </div>
         </section>
       ))}
-      {error ? (
-        <p className="mt-4 text-sm text-[#EF4444]" role="alert">
-          {error}
-        </p>
-      ) : null}
       <div className="mt-8 flex gap-6 border-b border-line">
         {(
           [
             ["business", "dashboard.tab_business"],
             ["reviews", "dashboard.tab_reviews"],
-            ["store", "dashboard.tab_store"],
           ] as const
         ).map(([id, label]) => (
           <button
@@ -284,14 +278,34 @@ export default function DashboardPage() {
           </button>
         ))}
       </div>
-      {tab === "business" && memberships.length === 0 ? (
+      {tab === "business" && memberships.length === 0 && !addingBusiness ? (
+        <section className="mt-8 rounded-2xl border border-line bg-surface px-6 py-10">
+          <h2 className="text-xl font-medium text-foreground">{t("dashboard.empty_title")}</h2>
+          <p className="mt-3 max-w-lg text-sm leading-6 text-muted">{t("dashboard.empty")}</p>
+          <button
+            type="button"
+            onClick={() => setAddingBusiness(true)}
+            className="mt-6 inline-flex h-11 items-center justify-center rounded-2xl bg-brand px-5 text-sm font-medium text-white"
+          >
+            {t("dashboard.empty_action")}
+          </button>
+        </section>
+      ) : null}
+      {tab === "business" && memberships.length === 0 && addingBusiness ? (
         <>
-          <p className="mt-6 text-sm text-muted">{t("dashboard.empty")}</p>
+          <button
+            type="button"
+            onClick={() => setAddingBusiness(false)}
+            className="mt-6 text-sm font-medium text-brand"
+          >
+            {t("back")}
+          </button>
           <BusinessForm
             onSubmitted={(created) => {
               setMemberships([{ business: created, role: "owner", location_id: null }]);
               setBusiness(created);
               setRole("owner");
+              setAddingBusiness(false);
             }}
           />
         </>
@@ -393,6 +407,20 @@ export default function DashboardPage() {
               <BusinessDetails business={business} />
             )}
           </div>
+          {(canAddStore || (business.locations?.length ?? 0) > 0) &&
+          (role === "owner" || role === "branch_owner" || role === "lead" || role === null) ? (
+            <StoreList
+              business={business}
+              canAdd={canAddStore}
+              token={async () => (await auth.currentUser?.getIdToken()) ?? ""}
+              onChanged={(next) => {
+                setBusiness(next);
+                setMemberships((current) =>
+                  current.map((item) => (item.business.id === next.id ? { ...item, business: next } : item)),
+                );
+              }}
+            />
+          ) : null}
           {role === "owner" && business.status !== "pending_review" ? (
             <div className="mt-6 flex flex-col gap-3 sm:flex-row">
               <button
@@ -476,12 +504,17 @@ export default function DashboardPage() {
       ) : null}
       {tab === "reviews" ? (
         <section className="mt-8">
-          {!business ? (
-            <p className="text-sm text-muted">{t("dashboard.reviews_need_business")}</p>
-          ) : business.status !== "published" ? (
-            <p className="text-sm text-muted">{t("dashboard.reviews_after_publish")}</p>
-          ) : reviews.length === 0 ? (
-            <p className="text-sm text-muted">{t("dashboard.reviews_empty")}</p>
+          {!business || business.status !== "published" || reviews.length === 0 ? (
+            <div className="rounded-2xl border border-line bg-surface px-6 py-10">
+              <h2 className="text-xl font-medium text-foreground">{t("dashboard.tab_reviews")}</h2>
+              <p className="mt-3 max-w-lg text-sm leading-6 text-muted">
+                {!business
+                  ? t("dashboard.reviews_need_business")
+                  : business.status !== "published"
+                    ? t("dashboard.reviews_after_publish")
+                    : t("dashboard.reviews_empty")}
+              </p>
+            </div>
           ) : (
             <ul className="grid gap-3">
               {reviews.map((review) => (
@@ -506,27 +539,6 @@ export default function DashboardPage() {
                 </li>
               ))}
             </ul>
-          )}
-        </section>
-      ) : null}
-      {tab === "store" ? (
-        <section className="mt-8">
-          {!business ? (
-            <p className="text-sm text-muted">{t("dashboard.store_need_business")}</p>
-          ) : !canAddStore ? (
-            <p className="text-sm text-muted">{t("dashboard.store_after_publish")}</p>
-          ) : (
-            <StoreList
-              business={business}
-              canAdd
-              token={async () => (await auth.currentUser?.getIdToken()) ?? ""}
-              onChanged={(next) => {
-                setBusiness(next);
-                setMemberships((current) =>
-                  current.map((item) => (item.business.id === next.id ? { ...item, business: next } : item)),
-                );
-              }}
-            />
           )}
         </section>
       ) : null}

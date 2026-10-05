@@ -60,7 +60,9 @@
     "confirm": "Verifică"
   },
   "dashboard": {
-    "empty": "Nu ai încă o afacere. Adaugă afacerea ca să ceri un loc în aplicația Ragly.",
+    "empty_title": "Încă nu ai o afacere",
+    "empty": "Aici va fi afacerea ta. Detaliile, magazinele și recenziile rămân aici după ce o publici.",
+    "empty_action": "Publică o afacere",
     "sign_out": "Deconectare",
     "account": "Cont",
     "invite_title": "Ești invitat să te alături: {name}",
