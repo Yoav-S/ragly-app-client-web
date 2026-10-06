@@ -137,6 +137,7 @@ export function ReviewQueue({
             {t("admin.back_to_requests")}
           </button>
           <h2 className="mt-3 text-lg font-medium text-foreground lg:mt-0">{selected.name}</h2>
+          <p className="mt-1 text-sm text-muted">{t("admin.first_business")}</p>
           <p className="mt-1 text-sm text-muted">{t("admin.review_hint")}</p>
           <div className="mt-5 grid gap-4">
             {REVIEW_FIELDS.map((field) => {
@@ -170,7 +171,7 @@ export function ReviewQueue({
             <button
               type="button"
               disabled={busyId === selected.id}
-              onClick={() => onDecide(selected.id, "approve", {})}
+              onClick={() => onDecide(selected.id, "approve", selectedNotes)}
               className="inline-flex h-12 items-center justify-center rounded-2xl bg-brand px-5 text-sm font-medium text-white disabled:bg-[#8DB0AA]"
             >
               {t("admin.approve")}

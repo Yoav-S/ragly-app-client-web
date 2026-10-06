@@ -8,7 +8,7 @@ import { BusinessForm } from "../components/business-form";
 import { BusinessEditor } from "../components/business-editor";
 import { ConfirmModal } from "../components/confirm-modal";
 import { NameGate } from "../components/name-gate";
-import { OwnerHeader } from "../components/owner-header";
+import { OwnerHeader, type OwnerNotice } from "../components/owner-header";
 import { StoreList } from "../components/store-list";
 import { apiDelete, apiGet, apiPost, type UserProfile } from "@/lib/api";
 import { auth } from "@/lib/firebase";
@@ -73,7 +73,8 @@ export default function DashboardPage() {
   const [memberEmail, setMemberEmail] = useState("");
   const [memberRole, setMemberRole] = useState<MemberRole>("worker");
   const [teamNotice, setTeamNotice] = useState("");
-  const [tab, setTab] = useState<"business" | "reviews">("business");
+  const [tab, setTab] = useState<"business" | "stores" | "reviews">("business");
+  const [seen, setSeen] = useState<string[]>([]);
   const [reviews, setReviews] = useState<OwnerReview[]>([]);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -115,6 +116,18 @@ export default function DashboardPage() {
     });
     return unsubscribe;
   }, [router, t]);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("ragly.seenDecisions");
+      const parsed = raw ? JSON.parse(raw) : [];
+      if (Array.isArray(parsed)) {
+        setSeen(parsed.filter((item) => typeof item === "string"));
+      }
+    } catch {
+      setSeen([]);
+    }
+  }, []);
 
   useEffect(() => {
     if (tab !== "reviews" || !business || business.status !== "published") {
@@ -223,9 +236,66 @@ export default function DashboardPage() {
 
   const canAddStore = role === "owner" && business?.status === "published";
 
+  function remember(id: string) {
+    setSeen((current) => {
+      const next = current.includes(id) ? current : [...current, id];
+      localStorage.setItem("ragly.seenDecisions", JSON.stringify(next));
+      return next;
+    });
+  }
+
+  function openNotice(id: string) {
+    remember(id);
+    if (id.startsWith("store:")) {
+      const locationId = id.slice("store:".length);
+      const match = memberships.find((item) =>
+        item.business.locations?.some((store) => store.id === locationId),
+      );
+      if (match) {
+        setBusiness(match.business);
+        setRole(match.role);
+      }
+      setTab("stores");
+      return;
+    }
+    const match = memberships.find((item) => item.business.id === id);
+    if (match) {
+      setBusiness(match.business);
+      setRole(match.role);
+    }
+    setTab("business");
+  }
+
+  const notices: OwnerNotice[] = [];
+  for (const item of memberships) {
+    if (
+      item.business.status === "published" &&
+      (item.business.reviewed_at || item.business.submitted_at) &&
+      !seen.includes(item.business.id)
+    ) {
+      notices.push({
+        id: item.business.id,
+        name: item.business.name,
+        detail: t("dashboard.approved_notice"),
+      });
+    }
+    for (const store of item.business.locations ?? []) {
+      const noticeId = `store:${store.id}`;
+      if (store.status === "published" && store.reviewed_at && !seen.includes(noticeId)) {
+        notices.push({
+          id: noticeId,
+          name: item.business.name,
+          detail: t("dashboard.store_approved_notice", { address: store.address }),
+        });
+      }
+    }
+  }
+
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col px-5 py-10">
-      {profile ? <OwnerHeader profile={profile} /> : null}
+      {profile ? (
+        <OwnerHeader profile={profile} notices={notices} onOpen={openNotice} />
+      ) : null}
       {error ? (
         <p className="mt-8 text-sm text-[#EF4444]" role="alert">
           {error}
@@ -263,6 +333,7 @@ export default function DashboardPage() {
         {(
           [
             ["business", "dashboard.tab_business"],
+            ["stores", "dashboard.tab_stores"],
             ["reviews", "dashboard.tab_reviews"],
           ] as const
         ).map(([id, label]) => (
@@ -378,6 +449,20 @@ export default function DashboardPage() {
           {role === "worker" ? (
             <p className="mt-3 text-sm text-muted">{t("dashboard.worker_notice")}</p>
           ) : null}
+          {business.status === "published" && Object.keys(business.admin_notes ?? {}).length > 0 ? (
+            <div className="mt-4 rounded-2xl bg-[#EEF3F2] p-4">
+              <p className="text-sm font-medium text-foreground">{t("dashboard.notes_title")}</p>
+              <p className="mt-1 text-sm text-muted">{t("dashboard.notes_body")}</p>
+              <ul className="mt-3 grid gap-3">
+                {Object.entries(business.admin_notes ?? {}).map(([field, message]) => (
+                  <li key={field}>
+                    <p className="text-sm font-medium text-foreground">{t(fieldLabel(field))}</p>
+                    <p className="mt-1 text-sm leading-6 text-foreground">{message}</p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
           {business.status === "rejected" && Object.keys(business.field_errors ?? {}).length > 0 ? (
             <div className="mt-4 rounded-2xl bg-[#FEF2F2] p-4">
               <p className="text-sm font-medium text-[#EF4444]">{t("dashboard.fix_these")}</p>
@@ -407,20 +492,6 @@ export default function DashboardPage() {
               <BusinessDetails business={business} />
             )}
           </div>
-          {(canAddStore || (business.locations?.length ?? 0) > 0) &&
-          (role === "owner" || role === "branch_owner" || role === "lead" || role === null) ? (
-            <StoreList
-              business={business}
-              canAdd={canAddStore}
-              token={async () => (await auth.currentUser?.getIdToken()) ?? ""}
-              onChanged={(next) => {
-                setBusiness(next);
-                setMemberships((current) =>
-                  current.map((item) => (item.business.id === next.id ? { ...item, business: next } : item)),
-                );
-              }}
-            />
-          ) : null}
           {role === "owner" && business.status !== "pending_review" ? (
             <div className="mt-6 flex flex-col gap-3 sm:flex-row">
               <button
@@ -500,6 +571,39 @@ export default function DashboardPage() {
               </ul>
             </form>
           ) : null}
+        </section>
+      ) : null}
+      {tab === "stores" ? (
+        <section className="mt-8">
+          {!business ? (
+            <div className="rounded-2xl border border-line bg-surface px-6 py-10">
+              <h2 className="text-xl font-medium text-foreground">{t("dashboard.tab_stores")}</h2>
+              <p className="mt-3 max-w-lg text-sm leading-6 text-muted">{t("dashboard.store_need_business")}</p>
+            </div>
+          ) : (
+            <>
+              {business.status !== "published" ? (
+                <div className="rounded-2xl border border-line bg-surface px-6 py-5">
+                  <h2 className="text-lg font-medium text-foreground">{business.name}</h2>
+                  <p className="mt-2 text-sm leading-6 text-muted">{t("dashboard.store_with_review")}</p>
+                </div>
+              ) : (
+                <h2 className="text-lg font-medium text-foreground">{business.name}</h2>
+              )}
+              <StoreList
+                business={business}
+                canAdd={canAddStore}
+                partOfReview={business.status === "pending_review"}
+                token={async () => (await auth.currentUser?.getIdToken()) ?? ""}
+                onChanged={(next) => {
+                  setBusiness(next);
+                  setMemberships((current) =>
+                    current.map((item) => (item.business.id === next.id ? { ...item, business: next } : item)),
+                  );
+                }}
+              />
+            </>
+          )}
         </section>
       ) : null}
       {tab === "reviews" ? (

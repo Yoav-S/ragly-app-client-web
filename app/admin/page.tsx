@@ -40,6 +40,7 @@ export default function AdminPage() {
   const [error, setError] = useState("");
   const [busyId, setBusyId] = useState("");
   const [tab, setTab] = useState<"businesses" | "reviews" | "add">("businesses");
+  const [reviewKind, setReviewKind] = useState<"businesses" | "stores">("businesses");
   const [notice, setNotice] = useState("");
   const [stores, setStores] = useState<StoreReview[]>([]);
   const pendingSkip = useRef(0);
@@ -174,7 +175,7 @@ export default function AdminPage() {
       const updated = await apiPost<Business>(
         `/admin/businesses/${id}/${action}`,
         token,
-        action === "reject" ? { field_errors: notes } : {},
+        action === "reject" ? { field_errors: notes } : { field_notes: notes },
       );
       setPending((current) => current.filter((item) => item.id !== id));
       setRecent((current) => [updated, ...current.filter((item) => item.id !== id)]);
@@ -276,25 +277,37 @@ export default function AdminPage() {
         </section>
       ) : (
         <div className="mt-6 grid gap-5">
-          <section className="rounded-3xl border border-line bg-surface p-5">
-            <h2 className="text-lg font-medium text-foreground">{t("admin.stores_waiting")}</h2>
-            <StoreReviewQueue
-              stores={stores}
-              busyId={busyId}
-              onDecide={(id, action, reason) => void decideStore(id, action, reason)}
-            />
-          </section>
-          <section>
-            <h2 className="text-lg font-medium text-foreground">{t("admin.pending_review")}</h2>
-            <ReviewQueue
-              pending={pending}
-              unreadIds={[]}
-              busyId={busyId}
-              hasMore={pendingMore}
-              onLoadMore={() => void loadQueue("pending", false)}
-              onDecide={(id, action, fieldErrors) => void decide(id, action, fieldErrors)}
-            />
-          </section>
+          <div className="flex gap-2">
+            <TabButton active={reviewKind === "businesses"} count={counts.pending} onClick={() => setReviewKind("businesses")}>
+              {t("admin.tab_new_businesses")}
+            </TabButton>
+            <TabButton active={reviewKind === "stores"} count={stores.length} onClick={() => setReviewKind("stores")}>
+              {t("admin.tab_new_stores")}
+            </TabButton>
+          </div>
+          {reviewKind === "stores" ? (
+            <section className="rounded-3xl border border-line bg-surface p-5">
+              <h2 className="text-lg font-medium text-foreground">{t("admin.stores_waiting")}</h2>
+              <p className="mt-2 text-sm text-muted">{t("admin.stores_waiting_hint")}</p>
+              <StoreReviewQueue
+                stores={stores}
+                busyId={busyId}
+                onDecide={(id, action, reason) => void decideStore(id, action, reason)}
+              />
+            </section>
+          ) : (
+            <section>
+              <h2 className="text-lg font-medium text-foreground">{t("admin.pending_review")}</h2>
+              <ReviewQueue
+                pending={pending}
+                unreadIds={[]}
+                busyId={busyId}
+                hasMore={pendingMore}
+                onLoadMore={() => void loadQueue("pending", false)}
+                onDecide={(id, action, fieldErrors) => void decide(id, action, fieldErrors)}
+              />
+            </section>
+          )}
           <section className="rounded-3xl border border-line bg-surface p-5">
             <h2 className="text-lg font-medium text-foreground">{t("admin.recent")}</h2>
             {recent.length === 0 ? (

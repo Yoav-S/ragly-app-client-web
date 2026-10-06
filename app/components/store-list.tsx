@@ -32,11 +32,13 @@ function phoneLine(store: StoreLocation): string {
 export function StoreList({
   business,
   canAdd,
+  partOfReview = false,
   token,
   onChanged,
 }: {
   business: Business;
   canAdd: boolean;
+  partOfReview?: boolean;
   token: () => Promise<string>;
   onChanged: (business: Business) => void;
 }) {
@@ -122,28 +124,46 @@ export function StoreList({
   }
 
   return (
-    <section className="mt-8 grid gap-3 border-t border-line pt-6">
+    <section className="mt-6 grid gap-4">
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-lg font-medium text-foreground">{t("dashboard.stores")}</h2>
-        <p className="text-sm text-muted">{t("dashboard.store_count", { n: String(stores.length) })}</p>
+        {canAdd && !open ? (
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            className="inline-flex h-11 items-center justify-center rounded-2xl bg-brand px-4 text-sm font-medium text-white"
+          >
+            {t("dashboard.add_store")}
+          </button>
+        ) : null}
       </div>
-      <p className="text-sm text-muted">{t("dashboard.stores_hint")}</p>
+      {canAdd ? <p className="text-sm leading-6 text-muted">{t("dashboard.stores_hint")}</p> : null}
+      {stores.length === 0 ? (
+        <p className="rounded-2xl border border-line bg-surface px-4 py-8 text-sm text-muted">{t("dashboard.stores_none")}</p>
+      ) : (
       <ul className="grid gap-3">
         {stores.map((store) => (
-          <li key={store.id} className="rounded-2xl border border-line bg-background p-4">
-            <p className="text-sm font-medium text-foreground">{store.address}</p>
-            <p className="mt-1 text-sm text-muted">{store.city}</p>
-            <p className="mt-2 text-sm text-foreground">
+          <li key={store.id} className="rounded-2xl border border-line bg-surface p-5">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-base font-medium text-foreground">{store.address}</p>
+                <p className="mt-1 text-sm text-muted">{store.city}</p>
+              </div>
+              <span className="shrink-0 rounded-full bg-[#EEF3F2] px-3 py-1 text-xs font-medium text-brand">
+                {partOfReview
+                  ? t("dashboard.store_badge_review")
+                  : store.status === "pending_review"
+                    ? t("dashboard.store_badge_pending")
+                    : store.status === "rejected"
+                      ? t("dashboard.store_badge_rejected")
+                      : t("dashboard.store_badge_live")}
+              </span>
+            </div>
+            <p className="mt-3 text-sm text-foreground">
               {phoneLine(store) || t("dashboard.shared_phone")}
             </p>
-            {store.status === "pending_review" ? (
-              <p className="mt-2 text-sm text-muted">{t("dashboard.store_pending")}</p>
-            ) : null}
-            {store.status === "rejected" ? (
-              <p className="mt-2 text-sm text-[#EF4444]">
-                {t("dashboard.store_rejected")}
-                {store.rejection_reason ? ` ${store.rejection_reason}` : ""}
-              </p>
+            {store.status === "rejected" && store.rejection_reason ? (
+              <p className="mt-2 text-sm text-[#EF4444]">{store.rejection_reason}</p>
             ) : null}
             {canAdd && stores.length > 1 ? (
               <button
@@ -157,6 +177,7 @@ export function StoreList({
           </li>
         ))}
       </ul>
+      )}
       {error ? <p className="text-sm text-[#EF4444]">{error}</p> : null}
       {canAdd ? (
         open ? (
@@ -204,23 +225,24 @@ export function StoreList({
               </label>
             </div>
             <p className="text-sm text-muted">{t("dashboard.saturday_hint")}</p>
-            <button
-              type="submit"
-              disabled={saving}
-              className="inline-flex h-11 items-center justify-center rounded-2xl bg-brand px-4 text-sm font-medium text-white"
-            >
-              {t("dashboard.add_store")}
-            </button>
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <button
+                type="submit"
+                disabled={saving}
+                className="inline-flex h-11 items-center justify-center rounded-2xl bg-brand px-4 text-sm font-medium text-white"
+              >
+                {t("dashboard.add_store")}
+              </button>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="inline-flex h-11 items-center justify-center rounded-2xl border border-line px-4 text-sm font-medium text-foreground"
+              >
+                {t("back")}
+              </button>
+            </div>
           </form>
-        ) : (
-          <button
-            type="button"
-            onClick={() => setOpen(true)}
-            className="inline-flex h-11 items-center justify-center rounded-2xl border border-line px-4 text-sm font-medium text-foreground"
-          >
-            {t("dashboard.add_store")}
-          </button>
-        )
+        ) : null
       ) : null}
       <ConfirmModal
         open={confirming}

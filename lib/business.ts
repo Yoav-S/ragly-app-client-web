@@ -42,6 +42,7 @@ export type StoreLocation = {
   phone: string[];
   status?: "pending_review" | "published" | "rejected";
   rejection_reason?: string | null;
+  reviewed_at?: string | null;
 };
 
 export type StoreReview = {
@@ -88,6 +89,9 @@ export type Business = {
   instagram: string | null;
   rejection_reason: string | null;
   field_errors: Record<string, string>;
+  admin_notes?: Record<string, string>;
+  reviewed_at?: string | null;
+  submitted_at?: string | null;
   invitations: Invitation[];
   locations?: StoreLocation[];
 };
