@@ -349,7 +349,7 @@ export default function DashboardPage() {
           </ul>
         </section>
       ) : null}
-      {tab === "business" && addingBusiness ? (
+      {tab === "business" && memberships.length > 0 && addingBusiness ? (
         <BusinessForm
           onSubmitted={(created) => {
             const next = { business: created, role: "owner" as const, location_id: null };
