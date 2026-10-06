@@ -346,7 +346,7 @@ export function BusinessForm({
             value={phone}
             inputMode="tel"
             autoComplete="tel"
-            placeholder="+972 522 723 686"
+            placeholder="+1 555 010 0199"
             onChange={(event) => {
               const next = [...phones];
               next[index] = event.target.value;

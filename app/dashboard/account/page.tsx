@@ -143,7 +143,7 @@ export default function AccountSettingsPage() {
             autoComplete="tel"
             value={phone}
             onChange={(event) => setPhone(event.target.value)}
-            placeholder="+972 522 723 686"
+            placeholder="+1 555 010 0199"
           />
           <span className="mt-2 block">{t("business.phone_hint")}</span>
         </label>

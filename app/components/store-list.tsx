@@ -182,7 +182,7 @@ export function StoreList({
             <p className="text-sm text-muted">{t("dashboard.map_hint")}</p>
             <label className="text-sm text-muted">
               {t("dashboard.store_phone")}
-              <input className={fieldClass} value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="+972 522 723 686" />
+              <input className={fieldClass} value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="+1 555 010 0199" />
               <span className="mt-2 block">{t("business.phone_hint")}</span>
             </label>
             <div className="grid gap-3 sm:grid-cols-2">
