@@ -36,6 +36,7 @@
     "network_timeout": "Cererea a expirat. Verifică conexiunea și încearcă din nou.",
     "business_incomplete": "Completează toate câmpurile obligatorii înainte de trimitere.",
     "business_not_pending": "Această afacere nu așteaptă verificarea.",
+    "business_name_taken": "O afacere cu acest nume este deja înregistrată.",
     "already_resolved": "Cererea a fost deja trimisă sau a primit răspuns."
   },
   "welcome": {
@@ -177,6 +178,9 @@
     "address": "Adresă",
     "timezone": "Fus orar",
     "hours": "Program",
+    "add_hours": "Adaugă programul",
+    "hours_skip_hint": "Lasă dezactivat dacă afacerea nu are un program. Îl poți adăuga mai târziu.",
+    "hours_unlisted": "Programul nu este trecut",
     "always_open": "Deschis non-stop",
     "closed": "Închis",
     "website": "Site",
@@ -188,7 +192,7 @@
     "saving_photos": "Se salvează fotografiile…",
     "remove_photo": "Șterge",
     "photo_limit": "Această afacere are deja 6 fotografii.",
-    "photo_type": "Folosește un JPG, PNG, WEBP sau GIF de maximum 5 MB.",
+    "photo_type": "Folosește o imagine de până la 5 MB. Sunt acceptate JPG, PNG, WEBP, GIF, SVG, AVIF, BMP, TIFF, ICO și HEIC.",
     "instagram": "Instagram",
     "veterinarian": "Veterinar",
     "groomer": "Frizerie",

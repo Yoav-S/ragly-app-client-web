@@ -38,7 +38,7 @@ const LABEL: Record<ReviewField, string> = {
   instagram: "business.instagram",
 };
 
-function fieldValue(business: Business, field: ReviewField, closed: string, always: string, dayLabel: (day: (typeof DAYS)[number]) => string): string {
+function fieldValue(business: Business, field: ReviewField, closed: string, always: string, unlisted: string, dayLabel: (day: (typeof DAYS)[number]) => string): string {
   if (field === "name") return business.name;
   if (field === "phone") return business.phone.join(", ");
   if (field === "email") return business.email ?? "";
@@ -55,6 +55,7 @@ function fieldValue(business: Business, field: ReviewField, closed: string, alwa
       ? `${business.location.coordinates[1]}, ${business.location.coordinates[0]}`
       : "";
   }
+  if (business.opening_hours.provided === false) return unlisted;
   if (business.opening_hours.always_open) return always;
   return DAYS.map((day) => {
     const slots = business.opening_hours[day];
@@ -143,7 +144,7 @@ export function ReviewQueue({
             {REVIEW_FIELDS.map((field) => {
               const value = field === "category"
                 ? t(`business.${selected.category}`)
-                : fieldValue(selected, field, t("business.closed"), t("business.always_open"), (day) => t(`business.${day}`));
+                : fieldValue(selected, field, t("business.closed"), t("business.always_open"), t("business.hours_unlisted"), (day) => t(`business.${day}`));
               return (
                 <div key={field} className="grid gap-3 border-t border-line pt-4 sm:grid-cols-2">
                   <div>

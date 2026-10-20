@@ -14,6 +14,8 @@ export type Weekday = (typeof DAYS)[number];
 export type TimeSlot = { open: string; close: string };
 
 export type OpeningHours = {
+  /** False when the business has no hours to publish. */
+  provided: boolean;
   always_open: boolean;
   mon: TimeSlot[];
   tue: TimeSlot[];
@@ -101,6 +103,55 @@ export type BusinessMembership = {
   role: MemberRole;
   location_id: string | null;
 };
+
+export const MAX_BUSINESS_IMAGE_BYTES = 5 * 1024 * 1024;
+
+const BUSINESS_IMAGE_TYPES = new Set([
+  "image/jpeg",
+  "image/jpg",
+  "image/pjpeg",
+  "image/png",
+  "image/apng",
+  "image/webp",
+  "image/gif",
+  "image/svg+xml",
+  "image/avif",
+  "image/bmp",
+  "image/x-ms-bmp",
+  "image/tiff",
+  "image/heic",
+  "image/heif",
+  "image/heic-sequence",
+  "image/heif-sequence",
+  "image/x-icon",
+  "image/vnd.microsoft.icon",
+]);
+
+const BUSINESS_IMAGE_EXTENSIONS = new Set([
+  "jpg",
+  "jpeg",
+  "png",
+  "webp",
+  "gif",
+  "svg",
+  "avif",
+  "bmp",
+  "tif",
+  "tiff",
+  "ico",
+  "heic",
+  "heif",
+]);
+
+export const BUSINESS_IMAGE_ACCEPT =
+  "image/jpeg,image/png,image/webp,image/gif,image/svg+xml,image/avif,image/bmp,image/tiff,image/heic,image/heif,image/x-icon,.jpg,.jpeg,.png,.webp,.gif,.svg,.avif,.bmp,.tif,.tiff,.heic,.heif,.ico";
+
+export function isBusinessImage(file: File): boolean {
+  if (file.size <= 0 || file.size > MAX_BUSINESS_IMAGE_BYTES) return false;
+  if (BUSINESS_IMAGE_TYPES.has(file.type.toLowerCase())) return true;
+  const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
+  return BUSINESS_IMAGE_EXTENSIONS.has(extension);
+}
 
 export function businessImages(business: { photo: string | null; photos?: string[] }): string[] {
   const photos = (business.photos ?? []).filter((url) => url.startsWith("https://"));

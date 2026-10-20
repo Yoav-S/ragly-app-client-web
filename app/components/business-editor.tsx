@@ -93,6 +93,7 @@ export function BusinessEditor({
   const [latitude, setLatitude] = useState("");
   const [longitude, setLongitude] = useState("");
   const [days, setDays] = useState<Record<Weekday, DayDraft>>(() => dayDrafts(business));
+  const [hoursOn, setHoursOn] = useState(true);
   const [alwaysOpen, setAlwaysOpen] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
@@ -112,6 +113,7 @@ export function BusinessEditor({
     }
     if (next === "hours") {
       setDays(dayDrafts(business));
+      setHoursOn(business.opening_hours.provided !== false);
       setAlwaysOpen(business.opening_hours.always_open);
     }
     if (next === "email") setDraft(business.email ?? "");
@@ -155,10 +157,10 @@ export function BusinessEditor({
   }
 
   function saveHours() {
-    const hours = { always_open: alwaysOpen } as OpeningHours;
+    const hours = { provided: hoursOn, always_open: hoursOn && alwaysOpen } as OpeningHours;
     for (const day of DAYS) {
       const row = days[day];
-      hours[day] = alwaysOpen || row.closed ? [] : [{ open: row.open, close: row.close }];
+      hours[day] = !hoursOn || alwaysOpen || row.closed ? [] : [{ open: row.open, close: row.close }];
     }
     void save({ opening_hours: hours });
   }
@@ -345,12 +347,24 @@ export function BusinessEditor({
             <label className="mt-2 flex items-center gap-2 text-sm text-foreground">
               <input
                 type="checkbox"
+                checked={hoursOn}
+                onChange={(event) => setHoursOn(event.target.checked)}
+              />
+              {t("business.add_hours")}
+            </label>
+            {hoursOn ? (
+            <label className="flex items-center gap-2 text-sm text-foreground">
+              <input
+                type="checkbox"
                 checked={alwaysOpen}
                 onChange={(event) => setAlwaysOpen(event.target.checked)}
               />
               {t("business.always_open")}
             </label>
-            {alwaysOpen
+            ) : (
+              <p className="text-sm text-muted">{t("business.hours_skip_hint")}</p>
+            )}
+            {!hoursOn || alwaysOpen
               ? null
               : DAYS.map((day) => (
                   <div key={day} className="grid grid-cols-[6rem_1fr_1fr] items-center gap-2">
@@ -386,6 +400,8 @@ export function BusinessEditor({
                 ))}
             <SaveButton pending={pending} onClick={saveHours} />
           </div>
+        ) : business.opening_hours.provided === false ? (
+          <Value text={t("business.hours_unlisted")} />
         ) : business.opening_hours.always_open ? (
           <Value text={t("business.always_open")} />
         ) : (

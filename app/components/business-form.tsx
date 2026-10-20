@@ -4,8 +4,10 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import { apiPatch, apiPost, apiUpload } from "@/lib/api";
 import { auth } from "@/lib/firebase";
 import {
+  BUSINESS_IMAGE_ACCEPT,
   CATEGORIES,
   DAYS,
+  isBusinessImage,
   type Business,
   type BusinessCategory,
   type OpeningHours,
@@ -15,8 +17,6 @@ import { ConfirmModal } from "./confirm-modal";
 import { cleanEmail, cleanInstagram, cleanPhone, cleanWebsite, parseCoordinate } from "@/lib/contact";
 import { errorMessage } from "@/lib/errors";
 import { useI18n } from "@/lib/i18n";
-const PHOTO_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
-const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
 const MAX_PHOTOS = 6;
 
 type PickedPhoto = { file: File; url: string };
@@ -50,13 +50,14 @@ function daysFromBusiness(business: Business): Record<Weekday, DayState> {
 }
 
 function hoursFromForm(
+  hoursOn: boolean,
   alwaysOpen: boolean,
   days: Record<Weekday, DayState>,
 ): OpeningHours {
-  const hours = { always_open: alwaysOpen } as OpeningHours;
+  const hours = { provided: hoursOn, always_open: alwaysOpen && hoursOn } as OpeningHours;
   for (const day of DAYS) {
     const row = days[day];
-    hours[day] = alwaysOpen || row.closed ? [] : [{ open: row.open, close: row.close }];
+    hours[day] = !hoursOn || alwaysOpen || row.closed ? [] : [{ open: row.open, close: row.close }];
   }
   return hours;
 }
@@ -74,6 +75,7 @@ function collectProblems(input: {
   instagram: string;
   latitude: string;
   longitude: string;
+  hoursOn: boolean;
   alwaysOpen: boolean;
   days: Record<Weekday, DayState>;
   ownerEmail: string;
@@ -102,7 +104,7 @@ function collectProblems(input: {
       problems.push({ id: "location_range" });
     }
   }
-  if (!input.alwaysOpen) {
+  if (input.hoursOn && !input.alwaysOpen) {
     const badDay = DAYS.find((day) => {
       const row = input.days[day];
       return !row.closed && !(row.open && row.close && row.open < row.close);
@@ -142,6 +144,7 @@ export function BusinessForm({
   const [city, setCity] = useState(initial?.city ?? "");
   const [address, setAddress] = useState(initial?.address ?? "");
   const [timezone, setTimezone] = useState(initial?.timezone ?? "Europe/Chisinau");
+  const [hoursOn, setHoursOn] = useState(initial ? initial.opening_hours.provided !== false : false);
   const [alwaysOpen, setAlwaysOpen] = useState(initial?.opening_hours.always_open ?? false);
   const [days, setDays] = useState(initial ? daysFromBusiness(initial) : emptyDays);
   const [website, setWebsite] = useState(initial?.website ?? "");
@@ -188,6 +191,7 @@ export function BusinessForm({
       instagram,
       latitude,
       longitude,
+      hoursOn,
       alwaysOpen,
       days,
       ownerEmail,
@@ -240,7 +244,7 @@ export function BusinessForm({
         city: city.trim(),
         address: address.trim(),
         timezone: timezone.trim(),
-        opening_hours: hoursFromForm(alwaysOpen, days),
+        opening_hours: hoursFromForm(hoursOn, alwaysOpen, days),
         website: cleanWebsite(website),
         location: {
           type: "Point" as const,
@@ -412,8 +416,22 @@ export function BusinessForm({
       </label>
       <fieldset className="grid gap-3 rounded-2xl border border-line bg-surface p-4">
         <legend className="px-1 text-sm text-muted">
-          {t("business.hours")} <span>({t("business.required")})</span>
+          {t("business.hours")} <span>({t("business.optional")})</span>
         </legend>
+        <label className="flex items-center gap-2 text-sm text-foreground">
+          <input
+            type="checkbox"
+            checked={hoursOn}
+            onChange={(event) => {
+              setHoursOn(event.target.checked);
+              clearProblem("hours");
+            }}
+          />
+          {t("business.add_hours")}
+        </label>
+        {hoursOn ? null : <p className="text-sm text-muted">{t("business.hours_skip_hint")}</p>}
+        {hoursOn ? (
+        <>
         <label className="flex items-center gap-2 text-sm text-foreground">
           <input
             type="checkbox"
@@ -466,6 +484,8 @@ export function BusinessForm({
                 </div>
               );
             })}
+        </>
+        ) : null}
       </fieldset>
       <div className="grid gap-5 sm:grid-cols-2">
         <label className="block text-sm text-muted">
@@ -571,15 +591,13 @@ export function BusinessForm({
               {t("business.add_photos")}
               <input
                 type="file"
-                accept="image/jpeg,image/png,image/webp,image/gif"
+                accept={BUSINESS_IMAGE_ACCEPT}
                 multiple
                 className="sr-only"
                 onChange={(event) => {
                   const files = Array.from(event.target.files ?? []);
                   event.target.value = "";
-                  const accepted = files.filter(
-                    (file) => PHOTO_TYPES.has(file.type) && file.size <= MAX_PHOTO_BYTES,
-                  );
+                  const accepted = files.filter((file) => isBusinessImage(file));
                   if (accepted.length !== files.length) {
                     setError(t("business.photo_type"));
                   }

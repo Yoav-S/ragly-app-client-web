@@ -14,6 +14,7 @@ function hours(open: string, close: string, weekendOpen: string, weekendClose: s
   const weekday = open && close ? [{ open, close }] : [];
   const saturday = weekendOpen && weekendClose ? [{ open: weekendOpen, close: weekendClose }] : [];
   return {
+    provided: Boolean(weekday.length || saturday.length),
     always_open: false,
     mon: weekday,
     tue: weekday,

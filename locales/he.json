@@ -35,7 +35,8 @@
     "firebase_signin_failed": "ההתחברות נכשלה לאחר האימות. נסה שוב.",
     "network_timeout": "הבקשה נמשכה יותר מדי. בדוק את החיבור ונסה שוב.",
     "business_incomplete": "מלאו את כל השדות החובה לפני השליחה.",
-    "business_not_pending": "העסק הזה לא ממתין לבדיקה."
+    "business_not_pending": "העסק הזה לא ממתין לבדיקה.",
+    "business_name_taken": "עסק בשם הזה כבר רשום."
   },
   "welcome": {
     "kicker": "Ragly לעסקים",
@@ -80,12 +81,16 @@
     "address": "כתובת",
     "timezone": "אזור זמן",
     "hours": "שעות פתיחה",
+    "add_hours": "יש שעות פתיחה",
+    "hours_skip_hint": "אפשר להשאיר את זה כבוי אם אין שעות קבועות. אפשר להוסיף אותן אחר כך.",
+    "hours_unlisted": "שעות הפתיחה לא צוינו",
     "always_open": "פתוח 24/7",
     "closed": "סגור",
     "website": "אתר",
     "latitude": "קו רוחב",
     "longitude": "קו אורך",
     "photo": "תמונה",
+    "photo_type": "אפשר להעלות תמונה עד 5 MB. JPG, PNG, WEBP, GIF, SVG, AVIF, BMP, TIFF, ICO ו-HEIC.",
     "photo_hint": "נשמר באחסון הקיים של Ragly, בתוך users / החשבון שלך / business. אין צורך ליצור תיקייה נפרדת.",
     "instagram": "Instagram",
     "veterinarian": "וטרינר",

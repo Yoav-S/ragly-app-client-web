@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { apiDeleteJson, apiUpload } from "@/lib/api";
-import { businessImages, type Business } from "@/lib/business";
+import { BUSINESS_IMAGE_ACCEPT, businessImages, isBusinessImage, type Business } from "@/lib/business";
 import { auth } from "@/lib/firebase";
 import { errorMessage } from "@/lib/errors";
 import { useI18n } from "@/lib/i18n";
@@ -28,12 +28,18 @@ export function BusinessPhotos({
   async function addPhotos(files: File[]) {
     const user = auth.currentUser;
     if (!user || files.length === 0 || pending) return;
+    const accepted = files.filter((file) => isBusinessImage(file));
+    if (accepted.length !== files.length) {
+      setError(t("business.photo_type"));
+    } else {
+      setError("");
+    }
+    if (accepted.length === 0) return;
     setPending(true);
-    setError("");
     try {
       const token = await user.getIdToken();
       let updated = business;
-      for (const file of Array.from(files)) {
+      for (const file of accepted) {
         updated = await apiUpload<Business>(base, token, file);
         onChanged(updated);
       }
@@ -84,7 +90,7 @@ export function BusinessPhotos({
           {pending ? t("business.saving_photos") : t("business.add_photos")}
           <input
             type="file"
-            accept="image/jpeg,image/png,image/webp,image/gif"
+            accept={BUSINESS_IMAGE_ACCEPT}
             multiple
             className="sr-only"
             disabled={pending}

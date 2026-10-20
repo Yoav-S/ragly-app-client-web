@@ -36,6 +36,7 @@
     "network_timeout": "The request timed out. Check your connection and try again.",
     "business_incomplete": "Fill every required field before sending the request.",
     "business_not_pending": "This listing is not waiting for review.",
+    "business_name_taken": "A business with this name is already registered.",
     "already_resolved": "This request was already sent or already answered."
   },
   "welcome": {
@@ -177,6 +178,9 @@
     "address": "Address",
     "timezone": "Timezone",
     "hours": "Opening hours",
+    "add_hours": "Add opening hours",
+    "hours_skip_hint": "Leave this off when the business has no set hours. You can add them later.",
+    "hours_unlisted": "Hours not listed",
     "always_open": "Open 24/7",
     "closed": "Closed",
     "website": "Website",
@@ -188,7 +192,7 @@
     "saving_photos": "Saving photos…",
     "remove_photo": "Remove",
     "photo_limit": "This business already has 6 photos.",
-    "photo_type": "Use a JPG, PNG, WEBP, or GIF under 5 MB.",
+    "photo_type": "Use an image under 5 MB. JPG, PNG, WEBP, GIF, SVG, AVIF, BMP, TIFF, ICO, and HEIC all work.",
     "instagram": "Instagram",
     "veterinarian": "Veterinarian",
     "groomer": "Groomer",

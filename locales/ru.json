@@ -36,6 +36,7 @@
     "network_timeout": "Время запроса истекло. Проверьте подключение и попробуйте снова.",
     "business_incomplete": "Заполните все обязательные поля перед отправкой.",
     "business_not_pending": "Эта заявка сейчас не на проверке.",
+    "business_name_taken": "Бизнес с таким названием уже зарегистрирован.",
     "already_resolved": "Этот запрос уже отправлен или уже получил ответ."
   },
   "welcome": {
@@ -177,6 +178,9 @@
     "address": "Адрес",
     "timezone": "Часовой пояс",
     "hours": "Часы работы",
+    "add_hours": "Указать часы работы",
+    "hours_skip_hint": "Оставьте выключенным, если у бизнеса нет часов работы. Их можно добавить позже.",
+    "hours_unlisted": "Часы работы не указаны",
     "always_open": "Круглосуточно",
     "closed": "Закрыто",
     "website": "Сайт",
@@ -188,7 +192,7 @@
     "saving_photos": "Сохраняем фото…",
     "remove_photo": "Удалить",
     "photo_limit": "У этого бизнеса уже 6 фотографий.",
-    "photo_type": "Нужен JPG, PNG, WEBP или GIF до 5 МБ.",
+    "photo_type": "Загрузите изображение до 5 МБ. Подходят JPG, PNG, WEBP, GIF, SVG, AVIF, BMP, TIFF, ICO и HEIC.",
     "instagram": "Instagram",
     "veterinarian": "Ветеринар",
     "groomer": "Грумер",

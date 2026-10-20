@@ -106,7 +106,9 @@ export function BusinessDetails({
       </dl>
       <div>
         <p className="text-xs text-muted">{t("business.hours")}</p>
-        {business.opening_hours.always_open ? (
+        {business.opening_hours.provided === false ? (
+          <p className="mt-1 text-sm text-foreground">{t("business.hours_unlisted")}</p>
+        ) : business.opening_hours.always_open ? (
           <p className="mt-1 text-sm text-foreground">{t("business.always_open")}</p>
         ) : (
           <ul className="mt-2 grid gap-1">
