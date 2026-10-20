@@ -84,8 +84,7 @@ function collectProblems(input: {
   const problems: FormProblem[] = [];
   if (!input.name.trim()) problems.push({ id: "name" });
   const filledPhones = input.phones.map((phone) => phone.trim()).filter(Boolean);
-  if (filledPhones.length === 0) problems.push({ id: "phone" });
-  else if (filledPhones.some((phone) => !cleanPhone(phone))) problems.push({ id: "phone_format" });
+  if (filledPhones.some((phone) => !cleanPhone(phone))) problems.push({ id: "phone_format" });
   if (!input.city.trim()) problems.push({ id: "city" });
   if (!input.address.trim()) problems.push({ id: "address" });
   if (!input.timezone.trim()) problems.push({ id: "timezone" });
@@ -340,9 +339,10 @@ export function BusinessForm({
       </label>
       <fieldset className="grid gap-3">
         <legend className="text-sm text-muted">
-          {t("business.phones")} <span>({t("business.required")})</span>
+          {t("business.phones")} <span>({t("business.optional")})</span>
         </legend>
         <p className="text-sm text-muted">{t("business.phone_hint")}</p>
+        <p className="text-sm text-muted">{t("business.phone_skip_hint")}</p>
         {phones.map((phone, index) => (
           <input
             key={index}

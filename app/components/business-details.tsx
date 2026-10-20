@@ -45,21 +45,23 @@ export function BusinessDetails({
             ? business.owner_email || business.email || t("admin.owned")
             : t("admin.not_owned")}
         </Fact>
-        <Fact label={t("business.phones")}>
-          <span className="grid gap-1">
-            {business.phone.map((phone) => {
-              const compact = phone.replace(/[^\d+]/g, "");
-              const href = /^\+?\d{7,15}$/.test(compact) ? `tel:${compact}` : null;
-              return href ? (
-                <a key={phone} href={href} className="text-brand">
-                  {phone}
-                </a>
-              ) : (
-                <span key={phone}>{phone}</span>
-              );
-            })}
-          </span>
-        </Fact>
+        {business.phone.length > 0 ? (
+          <Fact label={t("business.phones")}>
+            <span className="grid gap-1">
+              {business.phone.map((phone) => {
+                const compact = phone.replace(/[^\d+]/g, "");
+                const href = /^\+?\d{7,15}$/.test(compact) ? `tel:${compact}` : null;
+                return href ? (
+                  <a key={phone} href={href} className="text-brand">
+                    {phone}
+                  </a>
+                ) : (
+                  <span key={phone}>{phone}</span>
+                );
+              })}
+            </span>
+          </Fact>
+        ) : null}
         {(business.locations ?? []).length > 0 ? (
           <div className="sm:col-span-2">
             <Fact label={t("dashboard.stores")}>

@@ -155,6 +155,7 @@
     "optional": "Optional",
     "required": "Required",
     "phone_hint": "Use digits, or a country code. Example: +1 555 010 0199",
+    "phone_skip_hint": "Leave this empty if the business has no phone. Instagram is enough.",
     "website_hint": "example.com is enough. Leave this empty if you have no website.",
     "instagram_hint": "@name is enough. Leave this empty if you have no Instagram.",
     "location_hint": "These two numbers are the map point. Pet owners use them to see the distance.",

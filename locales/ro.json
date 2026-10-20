@@ -155,6 +155,7 @@
     "optional": "Opțional",
     "required": "Obligatoriu",
     "phone_hint": "Folosește cifre, sau un prefix de țară. Exemplu: +1 555 010 0199",
+    "phone_skip_hint": "Lasă gol dacă afacerea nu are telefon. Instagram este suficient.",
     "website_hint": "example.com este suficient. Lasă gol dacă nu ai site.",
     "instagram_hint": "@nume este suficient. Lasă gol dacă nu ai Instagram.",
     "location_hint": "Aceste două numere sunt punctul de pe hartă. Stăpânii de animale văd distanța după ele.",

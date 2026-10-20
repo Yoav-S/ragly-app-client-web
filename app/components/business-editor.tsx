@@ -16,6 +16,7 @@ import {
   type OpeningHours,
   type Weekday,
 } from "@/lib/business";
+import { cleanPhone } from "@/lib/contact";
 import { useI18n } from "@/lib/i18n";
 
 type Field =
@@ -238,9 +239,13 @@ export function BusinessEditor({
             <SaveButton
               pending={pending}
               onClick={() => {
-                const next = phones.map((phone) => phone.trim()).filter(Boolean);
-                if (next.length === 0) return;
-                void save({ phone: next });
+                const filled = phones.map((phone) => phone.trim()).filter(Boolean);
+                const next = filled.map((phone) => cleanPhone(phone));
+                if (next.some((phone) => !phone)) {
+                  setError(t("business.fix_phone_format"));
+                  return;
+                }
+                void save({ phone: next.filter((phone): phone is string => Boolean(phone)) });
               }}
             />
           </div>
