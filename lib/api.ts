@@ -6,17 +6,21 @@ export class ApiError extends Error {
   status: number;
   retryAfterSec: number | null;
   code: string | null;
+  /** Field names the server lists next to the code, e.g. a branch that is not complete. */
+  fields: string[];
 
   constructor(
     status: number,
     retryAfterSec: number | null,
     code: string | null,
+    fields: string[] = [],
   ) {
     super(code ?? String(status));
     this.name = "ApiError";
     this.status = status;
     this.retryAfterSec = retryAfterSec;
     this.code = code;
+    this.fields = fields;
   }
 }
 
@@ -25,22 +29,22 @@ function buildUrl(path: string): string {
   return `${env.apiBaseUrl}${API_PREFIX}${normalized}`;
 }
 
-async function parseErrorCode(res: Response): Promise<string | null> {
+async function parseErrorDetail(res: Response): Promise<{ code: string | null; fields: string[] }> {
   try {
     const json = (await res.json()) as { detail?: unknown };
     const detail = json.detail;
-    if (
-      detail &&
-      typeof detail === "object" &&
-      "code" in detail &&
-      typeof detail.code === "string"
-    ) {
-      return detail.code;
+    if (detail && typeof detail === "object") {
+      const record = detail as Record<string, unknown>;
+      const code = typeof record.code === "string" ? record.code : null;
+      const fields = Array.isArray(record.fields)
+        ? record.fields.filter((item): item is string => typeof item === "string")
+        : [];
+      return { code, fields };
     }
   } catch {
-    return null;
+    return { code: null, fields: [] };
   }
-  return null;
+  return { code: null, fields: [] };
 }
 
 function retryAfter(res: Response): number | null {
@@ -64,7 +68,8 @@ async function request<T>(
   }
   const res = await fetch(buildUrl(path), { ...init, headers });
   if (!res.ok) {
-    throw new ApiError(res.status, retryAfter(res), await parseErrorCode(res));
+    const detail = await parseErrorDetail(res);
+    throw new ApiError(res.status, retryAfter(res), detail.code, detail.fields);
   }
   if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;

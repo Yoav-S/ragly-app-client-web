@@ -1,23 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { onAuthStateChanged } from "firebase/auth";
 import { AccountBar } from "../components/account-bar";
+import { AdminCreateForm } from "../components/admin-create-form";
+import { AdminReview } from "../components/admin-review";
 import { BusinessDetails } from "../components/business-details";
 import { BusinessDirectory } from "../components/business-directory";
-import { BusinessForm } from "../components/business-form";
-import { ReviewQueue } from "../components/review-queue";
-import { StoreReviewQueue } from "../components/store-review-queue";
-import { apiGet, apiPost } from "@/lib/api";
-import {
-  businessImages,
-  type Business,
-  type BusinessCounts,
-  type BusinessPage,
-  type BusinessSession,
-  type StoreReview,
-} from "@/lib/business";
+import { LogoBadge } from "../components/business-logo";
+import { BusinessPillView } from "../components/status-pill";
+import { apiGet } from "@/lib/api";
+import type { Business, BusinessCounts, BusinessPage, BusinessSession, ReviewGroup } from "@/lib/business";
 import { signedInThisTab } from "@/lib/auth";
 import { errorMessage } from "@/lib/errors";
 import { auth } from "@/lib/firebase";
@@ -25,68 +19,62 @@ import { useI18n } from "@/lib/i18n";
 
 const EMPTY_COUNTS: BusinessCounts = { pending: 0, published: 0, rejected: 0, deleted: 0 };
 
+type Tab = "review" | "businesses" | "add";
+
 export default function AdminPage() {
+  return (
+    <Suspense fallback={<main className="mx-auto w-full max-w-5xl flex-1 px-5 py-10" />}>
+      <Admin />
+    </Suspense>
+  );
+}
+
+function Admin() {
   const router = useRouter();
+  const search = useSearchParams();
   const { t } = useI18n();
   const [ready, setReady] = useState(false);
   const [counts, setCounts] = useState<BusinessCounts>(EMPTY_COUNTS);
-  const [pending, setPending] = useState<Business[]>([]);
-  const [pendingMore, setPendingMore] = useState(false);
+  const [groups, setGroups] = useState<ReviewGroup[]>([]);
   const [recent, setRecent] = useState<Business[]>([]);
   const [recentMore, setRecentMore] = useState(false);
   const [openRecentId, setOpenRecentId] = useState<string | null>(null);
   const [directoryStatus, setDirectoryStatus] = useState<Business["status"] | "all">("published");
   const [directoryVersion, setDirectoryVersion] = useState(0);
   const [error, setError] = useState("");
-  const [busyId, setBusyId] = useState("");
-  const [tab, setTab] = useState<"businesses" | "reviews" | "add">("businesses");
-  const [reviewKind, setReviewKind] = useState<"businesses" | "stores">("businesses");
+  const [tab, setTab] = useState<Tab>(search.get("business") ? "businesses" : "review");
   const [notice, setNotice] = useState("");
-  const [stores, setStores] = useState<StoreReview[]>([]);
-  const pendingSkip = useRef(0);
   const recentSkip = useRef(0);
-  const queueLoading = useRef(false);
+  const recentLoading = useRef(false);
   const recentSentinel = useRef<HTMLDivElement>(null);
 
-  const loadQueue = useCallback(async (kind: "pending" | "recent", reset: boolean) => {
+  const loadReview = useCallback(async () => {
     const user = auth.currentUser;
     if (!user) return;
-    if (!reset && queueLoading.current) return;
-    queueLoading.current = true;
-    try {
-      const token = await user.getIdToken();
-      const skip = reset ? 0 : kind === "pending" ? pendingSkip.current : recentSkip.current;
-      const status = kind === "pending" ? "pending_review" : "reviewed";
-      const page = await apiGet<BusinessPage>(
-        `/admin/businesses/page?status=${status}&limit=20&skip=${skip}&sort=recent`,
-        token,
-      );
-      if (kind === "pending") {
-        pendingSkip.current = skip + page.items.length;
-        setPendingMore(page.has_more);
-        setPending((current) => (reset ? page.items : [...current, ...page.items]));
-      } else {
-        recentSkip.current = skip + page.items.length;
-        setRecentMore(page.has_more);
-        setRecent((current) => (reset ? page.items : [...current, ...page.items]));
-      }
-    } finally {
-      queueLoading.current = false;
-    }
+    setGroups(await apiGet<ReviewGroup[]>("/admin/review", await user.getIdToken()));
   }, []);
 
-  const loadStores = useCallback(async () => {
+  const loadRecent = useCallback(async (reset: boolean) => {
     const user = auth.currentUser;
     if (!user) return;
-    const token = await user.getIdToken();
-    setStores(await apiGet<StoreReview[]>("/admin/locations?status=pending_review", token));
+    if (!reset && recentLoading.current) return;
+    recentLoading.current = true;
+    try {
+      const token = await user.getIdToken();
+      const skip = reset ? 0 : recentSkip.current;
+      const page = await apiGet<BusinessPage>(`/admin/businesses/page?status=reviewed&limit=20&skip=${skip}&sort=recent`, token);
+      recentSkip.current = skip + page.items.length;
+      setRecentMore(page.has_more);
+      setRecent((current) => (reset ? page.items : [...current, ...page.items]));
+    } finally {
+      recentLoading.current = false;
+    }
   }, []);
 
   const refreshCounts = useCallback(async () => {
     const user = auth.currentUser;
     if (!user) return;
-    const token = await user.getIdToken();
-    setCounts(await apiGet<BusinessCounts>("/admin/businesses/summary", token));
+    setCounts(await apiGet<BusinessCounts>("/admin/businesses/summary", await user.getIdToken()));
   }, []);
 
   useEffect(() => {
@@ -102,89 +90,37 @@ export default function AdminPage() {
         return;
       }
       try {
-        const token = await user.getIdToken();
-        const session = await apiGet<BusinessSession>("/businesses/mine", token);
+        const session = await apiGet<BusinessSession>("/businesses/mine", await user.getIdToken());
         if (!session.is_ragly_admin) {
           router.replace("/dashboard");
           return;
         }
-        await Promise.all([
-          refreshCounts(),
-          loadQueue("pending", true),
-          loadQueue("recent", true),
-        ]);
-        try {
-          await loadStores();
-        } catch (storeError: unknown) {
-          setError(errorMessage(storeError, t));
-        }
+        await Promise.all([refreshCounts(), loadReview(), loadRecent(true)]);
         setReady(true);
       } catch (err: unknown) {
         setError(errorMessage(err, t));
       }
     });
     return unsubscribe;
-  }, [router, t, refreshCounts, loadQueue, loadStores]);
+  }, [router, t, refreshCounts, loadReview, loadRecent]);
 
   useEffect(() => {
     const node = recentSentinel.current;
     if (!node || !recentMore) return;
     const observer = new IntersectionObserver((entries) => {
-      if (entries[0]?.isIntersecting) void loadQueue("recent", false);
+      if (entries[0]?.isIntersecting) void loadRecent(false);
     });
     observer.observe(node);
     return () => observer.disconnect();
-  }, [recentMore, recent.length, loadQueue]);
+  }, [recentMore, recent.length, loadRecent]);
 
-  async function decideStore(id: string, action: "approve" | "reject", reason: string) {
-    const user = auth.currentUser;
-    if (!user) return;
-    if (action === "reject" && !reason.trim()) return;
-    setBusyId(id);
+  async function afterDecision() {
     setError("");
     try {
-      const token = await user.getIdToken();
-      await apiPost(
-        `/admin/locations/${id}/${action}`,
-        token,
-        action === "reject" ? { reason: reason.trim() } : {},
-      );
-      setStores((current) => current.filter((store) => store.id !== id));
-    } catch (err: unknown) {
-      setError(errorMessage(err, t));
-    } finally {
-      setBusyId("");
-    }
-  }
-
-  async function decide(
-    id: string,
-    action: "approve" | "reject",
-    fieldErrors: Record<string, string>,
-  ) {
-    const user = auth.currentUser;
-    if (!user) return;
-    const notes = Object.fromEntries(
-      Object.entries(fieldErrors).filter(([, note]) => note.trim()),
-    );
-    if (action === "reject" && Object.keys(notes).length === 0) return;
-    setBusyId(id);
-    setError("");
-    try {
-      const token = await user.getIdToken();
-      const updated = await apiPost<Business>(
-        `/admin/businesses/${id}/${action}`,
-        token,
-        action === "reject" ? { field_errors: notes } : { field_notes: notes },
-      );
-      setPending((current) => current.filter((item) => item.id !== id));
-      setRecent((current) => [updated, ...current.filter((item) => item.id !== id)]);
+      await Promise.all([loadReview(), loadRecent(true), refreshCounts()]);
       setDirectoryVersion((version) => version + 1);
-      await refreshCounts();
     } catch (err: unknown) {
       setError(errorMessage(err, t));
-    } finally {
-      setBusyId("");
     }
   }
 
@@ -201,16 +137,13 @@ export default function AdminPage() {
   }
 
   const openRecent = recent.find((business) => business.id === openRecentId) ?? null;
+  const waitingBranches = groups.reduce((sum, group) => sum + group.branches.length, 0);
 
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col px-5 py-10">
       <AccountBar title={t("admin.title")} />
       <div className="mt-8 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat
-          label={t("admin.waiting")}
-          value={counts.pending}
-          onClick={() => setTab("reviews")}
-        />
+        <Stat label={t("admin.waiting")} value={counts.pending} onClick={() => setTab("review")} />
         <Stat
           label={t("admin.published")}
           value={counts.published}
@@ -229,16 +162,12 @@ export default function AdminPage() {
         />
         <Stat label={t("admin.deleted")} value={counts.deleted} />
       </div>
-      <div className="mt-6 flex gap-2">
+      <div className="mt-6 flex flex-wrap gap-2">
+        <TabButton active={tab === "review"} count={waitingBranches} onClick={() => setTab("review")}>
+          {t("admin.tab_reviews")}
+        </TabButton>
         <TabButton active={tab === "businesses"} onClick={() => setTab("businesses")}>
           {t("admin.tab_businesses")}
-        </TabButton>
-        <TabButton
-          active={tab === "reviews"}
-          count={counts.pending + stores.length}
-          onClick={() => setTab("reviews")}
-        >
-          {t("admin.tab_reviews")}
         </TabButton>
         <TabButton active={tab === "add"} onClick={() => setTab("add")}>
           {t("admin.tab_add")}
@@ -256,68 +185,35 @@ export default function AdminPage() {
           status={directoryStatus}
           onStatusChange={setDirectoryStatus}
           reloadKey={directoryVersion}
-          onUpdated={() => undefined}
-          onInvited={() => undefined}
-          onDeleted={() => {
-            void refreshCounts();
-          }}
+          initialId={search.get("business")}
+          onDeleted={() => void refreshCounts()}
         />
       ) : tab === "add" ? (
-        <section className="mt-6 rounded-3xl border border-line bg-surface p-5 sm:p-8">
-          <BusinessForm
-            mode="admin"
-            onSubmitted={(business) => {
+        <section className="mt-6">
+          <AdminCreateForm
+            onCreated={(business) => {
               setRecent((current) => [business, ...current]);
               setDirectoryVersion((version) => version + 1);
               setNotice(t("admin.published_now"));
-              setTab("reviews");
+              setTab("businesses");
               void refreshCounts();
             }}
           />
         </section>
       ) : (
-        <div className="mt-6 grid gap-5">
-          <div className="flex gap-2">
-            <TabButton active={reviewKind === "businesses"} count={counts.pending} onClick={() => setReviewKind("businesses")}>
-              {t("admin.tab_new_businesses")}
-            </TabButton>
-            <TabButton active={reviewKind === "stores"} count={stores.length} onClick={() => setReviewKind("stores")}>
-              {t("admin.tab_new_stores")}
-            </TabButton>
-          </div>
-          {reviewKind === "stores" ? (
-            <section className="rounded-3xl border border-line bg-surface p-5">
-              <h2 className="text-lg font-medium text-foreground">{t("admin.stores_waiting")}</h2>
-              <p className="mt-2 text-sm text-muted">{t("admin.stores_waiting_hint")}</p>
-              <StoreReviewQueue
-                stores={stores}
-                busyId={busyId}
-                onDecide={(id, action, reason) => void decideStore(id, action, reason)}
-              />
-            </section>
-          ) : (
-            <section>
-              <h2 className="text-lg font-medium text-foreground">{t("admin.pending_review")}</h2>
-              <ReviewQueue
-                pending={pending}
-                unreadIds={[]}
-                busyId={busyId}
-                hasMore={pendingMore}
-                onLoadMore={() => void loadQueue("pending", false)}
-                onDecide={(id, action, fieldErrors) => void decide(id, action, fieldErrors)}
-              />
-            </section>
-          )}
+        <div className="mt-6 grid gap-8">
+          <section>
+            <h2 className="text-lg font-medium text-foreground">{t("admin.pending_review")}</h2>
+            <p className="mt-1 text-sm text-muted">{t("admin.review_hint")}</p>
+            <AdminReview groups={groups} onDecided={() => void afterDecision()} />
+          </section>
           <section className="rounded-3xl border border-line bg-surface p-5">
             <h2 className="text-lg font-medium text-foreground">{t("admin.recent")}</h2>
             {recent.length === 0 ? (
-              <p className="mt-4 rounded-2xl bg-background px-4 py-8 text-center text-sm text-muted">
-                {t("admin.empty_recent")}
-              </p>
+              <p className="mt-4 rounded-2xl bg-background px-4 py-8 text-center text-sm text-muted">{t("admin.empty_recent")}</p>
             ) : (
               <ul className="mt-4 grid gap-2">
                 {recent.map((business) => {
-                  const image = businessImages(business)[0];
                   const open = business.id === openRecentId;
                   return (
                     <li key={business.id} className="rounded-2xl bg-background">
@@ -326,18 +222,14 @@ export default function AdminPage() {
                         onClick={() => setOpenRecentId(open ? null : business.id)}
                         className="flex w-full items-center gap-3 px-4 py-3 text-start"
                       >
+                        <LogoBadge business={business} size="h-12 w-12" />
                         <span className="min-w-0 flex-1">
-                          <span className="block text-sm font-medium text-foreground">{business.name}</span>
+                          <span className="block truncate text-sm font-medium text-foreground">{business.name}</span>
                           <span className="mt-1 block text-sm text-muted">
-                            {t(`admin.${business.status}`)} · {business.city}
+                            {business.city || "—"} · {t("admin.branch_count", { n: business.locations.length })}
                           </span>
                         </span>
-                        {image ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={image} alt="" className="h-14 w-14 shrink-0 rounded-xl object-cover" />
-                        ) : (
-                          <span className="h-14 w-14 shrink-0 rounded-xl bg-surface" />
-                        )}
+                        <BusinessPillView status={business.status} />
                       </button>
                       {open && openRecent ? (
                         <div className="border-t border-line px-4 py-4">
@@ -357,15 +249,7 @@ export default function AdminPage() {
   );
 }
 
-function Stat({
-  label,
-  value,
-  onClick,
-}: {
-  label: string;
-  value: number | string;
-  onClick?: () => void;
-}) {
+function Stat({ label, value, onClick }: { label: string; value: number | string; onClick?: () => void }) {
   const className = "rounded-2xl border border-line bg-surface px-5 py-4 text-start";
   const body = (
     <>
@@ -381,17 +265,7 @@ function Stat({
   );
 }
 
-function TabButton({
-  active,
-  count = 0,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  count?: number;
-  onClick: () => void;
-  children: string;
-}) {
+function TabButton({ active, count = 0, onClick, children }: { active: boolean; count?: number; onClick: () => void; children: string }) {
   return (
     <button
       type="button"
