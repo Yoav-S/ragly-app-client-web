@@ -39,8 +39,13 @@ export function NameGate({ onSaved }: { onSaved: (profile: UserProfile) => void 
       <div className="mb-6 flex justify-end">
         <LanguageSwitcher />
       </div>
-      <h1 className="text-3xl font-medium text-foreground">{t("dashboard.name_title")}</h1>
+      <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#EEF3F2] text-lg font-medium text-brand">
+        R
+      </span>
+      <p className="mt-6 text-sm font-medium text-brand">{t("welcome.kicker")}</p>
+      <h1 className="mt-2 text-3xl font-medium text-foreground">{t("dashboard.name_title")}</h1>
       <p className="mt-3 text-base leading-7 text-muted">{t("dashboard.name_body")}</p>
+      <p className="mt-2 text-sm text-muted">{t("dashboard.name_path")}</p>
       <form onSubmit={onSubmit} className="mt-8">
         <label className="block text-sm text-muted" htmlFor="account-name">
           {t("dashboard.name_label")}

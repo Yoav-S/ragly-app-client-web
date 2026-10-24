@@ -330,6 +330,20 @@ export function branchIsLive(branch: Branch): boolean {
   return branch.status === "published" && branch.visible;
 }
 
+/** True when a saved branch has anything a pet owner (or a reviewer) would see. */
+export function branchHasProgress(branch: Branch): boolean {
+  return Boolean(
+    branch.address.trim() ||
+      branch.city.trim() ||
+      branch.location ||
+      branch.services.length ||
+      branch.phone.length ||
+      branch.website ||
+      branch.instagram ||
+      branch.photo,
+  );
+}
+
 export const MAX_BUSINESS_IMAGE_BYTES = 5 * 1024 * 1024;
 
 const BUSINESS_IMAGE_TYPES = new Set([

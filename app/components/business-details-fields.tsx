@@ -51,7 +51,6 @@ export function cleanDetails(
   const name = draft.name.trim();
   if (!name) errors.name = t("business.fix_name");
   const filled = draft.phones.map((phone) => phone.trim()).filter(Boolean);
-  if (!filled.length) errors.phones = t("business.fix_phone");
   const phones = filled.map((phone) => cleanPhone(phone));
   if (phones.some((phone) => !phone)) errors.phones = t("business.fix_phone_format");
   const emailText = draft.email.trim();
@@ -77,6 +76,8 @@ export function cleanDetails(
   };
 }
 
+export type DetailsSection = "name" | "phones" | "email" | "description" | "website" | "instagram";
+
 export function BusinessDetailsFields({
   draft,
   onChange,
@@ -86,6 +87,7 @@ export function BusinessDetailsFields({
   autoFocus,
   allowClaim = false,
   onNameBlocked,
+  show,
 }: {
   draft: DetailsDraft;
   onChange: (next: DetailsDraft) => void;
@@ -98,7 +100,10 @@ export function BusinessDetailsFields({
   /** Owner onboarding: an unowned listing opens Contact us. Admins just see the taken error. */
   allowClaim?: boolean;
   onNameBlocked?: (blocked: boolean) => void;
+  /** When set, only these sections render. Used by the one-field onboarding wizard. */
+  show?: DetailsSection[];
 }) {
+  const visible = (section: DetailsSection) => !show || show.includes(section);
   const { t } = useI18n();
   const [nameState, setNameState] = useState<NameState>("idle");
   const [claimOpen, setClaimOpen] = useState(false);
@@ -162,33 +167,35 @@ export function BusinessDetailsFields({
 
   return (
     <div className="grid gap-5">
-      <div>
-        <Field
-          label={t("business.name")}
-          error={errors.name ?? (nameState === "taken" ? t("errors.business_name_taken") : null)}
-          hint={nameHint}
-          note={notes?.name}
-        >
-          <input
-            className={inputClass}
-            value={draft.name}
-            autoFocus={autoFocus}
-            maxLength={200}
-            placeholder={t("onboarding.name_placeholder")}
-            onChange={(event) => onChange({ ...draft, name: event.target.value })}
-          />
-        </Field>
-        {nameState === "claimable" ? (
-          <div className="mt-3 rounded-2xl bg-[#EEF3F2] px-4 py-3">
-            <p className="text-sm leading-6 text-foreground">{t("onboarding.claim_hint", { name: takenName })}</p>
-            <button type="button" onClick={contactUs} className="mt-2 text-sm font-medium text-brand">
-              {t("onboarding.claim_contact")}
-            </button>
-          </div>
-        ) : null}
-      </div>
+      {visible("name") ? (
+        <div>
+          <Field
+            label={t("business.name")}
+            error={errors.name ?? (nameState === "taken" ? t("errors.business_name_taken") : null)}
+            hint={nameHint}
+            note={notes?.name}
+          >
+            <input
+              className={inputClass}
+              value={draft.name}
+              autoFocus={autoFocus}
+              maxLength={200}
+              placeholder={t("onboarding.name_placeholder")}
+              onChange={(event) => onChange({ ...draft, name: event.target.value })}
+            />
+          </Field>
+          {nameState === "claimable" ? (
+            <div className="mt-3 rounded-2xl bg-[#EEF3F2] px-4 py-3">
+              <p className="text-sm leading-6 text-foreground">{t("onboarding.claim_hint", { name: takenName })}</p>
+              <button type="button" onClick={contactUs} className="mt-2 text-sm font-medium text-brand">
+                {t("onboarding.claim_contact")}
+              </button>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
       <ConfirmModal
-        open={claimOpen}
+        open={claimOpen && visible("name")}
         title={t("onboarding.claim_title", { name: takenName })}
         body={t("onboarding.claim_body", { name: takenName })}
         confirmLabel={t("onboarding.claim_contact")}
@@ -196,32 +203,42 @@ export function BusinessDetailsFields({
         onConfirm={contactUs}
         onCancel={() => setClaimOpen(false)}
       />
-      <Field label={t("business.phones")} error={errors.phones} hint={t("business.phone_hint")} note={notes?.phone}>
-        <div className="mt-2">
-          <PhoneList
-            phones={draft.phones}
-            onChange={(phones) => onChange({ ...draft, phones })}
-            addLabel={t("business.add_phone")}
-            removeLabel={t("business.remove_phone")}
-            placeholder="+373 ..."
+      {visible("phones") ? (
+        <Field
+          label={t("business.phones")}
+          optional={t("business.optional")}
+          error={errors.phones}
+          hint={t("business.phone_skip_hint")}
+          note={notes?.phone}
+        >
+          <div className="mt-2">
+            <PhoneList
+              phones={draft.phones}
+              onChange={(phones) => onChange({ ...draft, phones })}
+              addLabel={t("business.add_phone")}
+              removeLabel={t("business.remove_phone")}
+              placeholder="+373 ..."
+            />
+          </div>
+        </Field>
+      ) : null}
+      {visible("description") ? (
+        <Field
+          label={t("business.description")}
+          optional={t("business.optional")}
+          hint={t("onboarding.description_hint")}
+          note={notes?.description}
+        >
+          <textarea
+            className={textareaClass}
+            value={draft.description}
+            maxLength={2000}
+            placeholder={t("onboarding.description_placeholder")}
+            onChange={(event) => onChange({ ...draft, description: event.target.value })}
           />
-        </div>
-      </Field>
-      <Field
-        label={t("business.description")}
-        optional={t("business.optional")}
-        hint={t("onboarding.description_hint")}
-        note={notes?.description}
-      >
-        <textarea
-          className={textareaClass}
-          value={draft.description}
-          maxLength={2000}
-          placeholder={t("onboarding.description_placeholder")}
-          onChange={(event) => onChange({ ...draft, description: event.target.value })}
-        />
-      </Field>
-      <div className="grid gap-5 sm:grid-cols-2">
+        </Field>
+      ) : null}
+      {visible("email") ? (
         <Field label={t("business.email")} optional={t("business.optional")} error={errors.email} note={notes?.email}>
           <input
             className={inputClass}
@@ -231,6 +248,8 @@ export function BusinessDetailsFields({
             onChange={(event) => onChange({ ...draft, email: event.target.value })}
           />
         </Field>
+      ) : null}
+      {visible("website") ? (
         <Field
           label={t("business.website")}
           optional={t("business.optional")}
@@ -245,21 +264,23 @@ export function BusinessDetailsFields({
             onChange={(event) => onChange({ ...draft, website: event.target.value })}
           />
         </Field>
-      </div>
-      <Field
-        label={t("business.instagram")}
-        optional={t("business.optional")}
-        error={errors.instagram}
-        hint={t("business.instagram_hint")}
-        note={notes?.instagram}
-      >
-        <input
-          className={inputClass}
-          value={draft.instagram}
-          placeholder="@name"
-          onChange={(event) => onChange({ ...draft, instagram: event.target.value })}
-        />
-      </Field>
+      ) : null}
+      {visible("instagram") ? (
+        <Field
+          label={t("business.instagram")}
+          optional={t("business.optional")}
+          error={errors.instagram}
+          hint={t("business.instagram_hint")}
+          note={notes?.instagram}
+        >
+          <input
+            className={inputClass}
+            value={draft.instagram}
+            placeholder="@name"
+            onChange={(event) => onChange({ ...draft, instagram: event.target.value })}
+          />
+        </Field>
+      ) : null}
     </div>
   );
 }

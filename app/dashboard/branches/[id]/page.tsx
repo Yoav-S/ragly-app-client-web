@@ -4,7 +4,15 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { onAuthStateChanged } from "firebase/auth";
-import { BranchFields, branchDraftFrom, cleanBranch, emptyBranchDraft, type BranchDraft, type BranchErrors } from "../../../components/branch-fields";
+import {
+  BranchFields,
+  branchDraftFrom,
+  branchDraftHasProgress,
+  cleanBranch,
+  emptyBranchDraft,
+  type BranchDraft,
+  type BranchErrors,
+} from "../../../components/branch-fields";
 import { ConfirmModal } from "../../../components/confirm-modal";
 import { Card, dangerButton, primaryButton, secondaryButton } from "../../../components/form-controls";
 import { BranchPillView } from "../../../components/status-pill";
@@ -131,6 +139,10 @@ function BranchEditor() {
 
   async function onSave() {
     if (pending) return;
+    if (!branchDraftHasProgress(draft)) {
+      setError(t("branch.empty_save"));
+      return;
+    }
     setPending("save");
     setError("");
     setSaved(false);

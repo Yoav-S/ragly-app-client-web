@@ -12,28 +12,33 @@ export function BusinessDetails({
   business,
   showImages = true,
   showBranches = true,
+  compact = false,
 }: {
   business: Business;
   showImages?: boolean;
   showBranches?: boolean;
+  /** Skip the logo + name header when the parent already shows them. */
+  compact?: boolean;
 }) {
   const { t } = useI18n();
   const images = businessImages(business).filter((url) => url !== business.photo);
 
   return (
     <div className="grid gap-5">
-      <div className="flex items-center gap-4">
-        <LogoBadge business={business} />
-        <div className="min-w-0">
-          <h3 className="truncate text-xl font-medium text-foreground">{business.name}</h3>
-          <p className="mt-0.5 text-sm text-muted">
-            {business.categories.length
-              ? business.categories.map((category) => t(`categories.${category}`)).join(" · ")
-              : t("business.no_services_yet")}
-            {business.city ? ` · ${business.city}` : ""}
-          </p>
+      {compact ? null : (
+        <div className="flex items-center gap-4">
+          <LogoBadge business={business} />
+          <div className="min-w-0">
+            <h3 className="truncate text-xl font-medium text-foreground">{business.name}</h3>
+            <p className="mt-0.5 text-sm text-muted">
+              {business.categories.length
+                ? business.categories.map((category) => t(`categories.${category}`)).join(" · ")
+                : t("business.no_services_yet")}
+              {business.city ? ` · ${business.city}` : ""}
+            </p>
+          </div>
         </div>
-      </div>
+      )}
       {showImages && images.length > 0 ? (
         <div className="grid grid-cols-3 gap-2">
           {images.map((url) => (

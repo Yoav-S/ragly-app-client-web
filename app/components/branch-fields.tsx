@@ -60,6 +60,19 @@ function nextKey(): string {
   return `s${Date.now().toString(36)}${keyCounter}`;
 }
 
+export function branchDraftHasProgress(draft: BranchDraft): boolean {
+  return Boolean(
+    draft.address.trim() ||
+      draft.city.trim() ||
+      draft.point ||
+      draft.place_ref ||
+      draft.services.length ||
+      draft.phones.some((phone) => phone.trim()) ||
+      draft.website.trim() ||
+      draft.instagram.trim(),
+  );
+}
+
 export function emptyBranchDraft(): BranchDraft {
   return {
     address: "",

@@ -18,6 +18,7 @@ import { VisibilityControl } from "../components/visibility-control";
 import { apiDelete, apiGet, apiPost, type UserProfile } from "@/lib/api";
 import { auth } from "@/lib/firebase";
 import {
+  branchHasProgress,
   fieldLabelKey,
   type Branch,
   type Business,
@@ -38,6 +39,8 @@ type OwnerReview = {
   comment?: string | null;
   created_at: string;
 };
+
+type OwnerTab = "branches" | "details" | "team" | "reviews";
 
 function roleLabel(role: string): string {
   if (role === "branch_owner") return "admin.role_branch_owner";
@@ -65,7 +68,7 @@ function Dashboard() {
   const [notices, setNotices] = useState<BusinessEvent[]>([]);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState("");
-  const [onboarding, setOnboarding] = useState(false);
+  const [tab, setTab] = useState<OwnerTab>("branches");
   const [editing, setEditing] = useState(false);
   const [sentBanner, setSentBanner] = useState(search.get("sent") === "1");
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -123,6 +126,11 @@ function Dashboard() {
   const membership = memberships.find((item) => item.business.id === selectedId) ?? null;
   const business = membership?.business ?? null;
   const role = membership?.role ?? null;
+
+  useEffect(() => {
+    setTab("branches");
+    setEditing(false);
+  }, [selectedId]);
 
   useEffect(() => {
     setReviews(null);
@@ -233,7 +241,6 @@ function Dashboard() {
     const notice = notices.find((item) => item.id === id);
     if (notice) {
       setSelectedId(notice.business_id);
-      setOnboarding(false);
     }
     setNotices([]);
     const user = auth.currentUser;
@@ -276,11 +283,22 @@ function Dashboard() {
     }),
   }));
 
-  const showOnboarding = onboarding || memberships.length === 0;
+  const showOnboarding = memberships.length === 0;
   const isOwner = role === "owner";
   const canManageBranches = isOwner;
+  const canInvite = isOwner || role === "branch_owner" || role === "lead";
   const branches = business?.locations ?? [];
+  const listedBranches = branches.filter(branchHasProgress);
+  const emptyDraft = branches.find((item) => item.status === "draft" && !branchHasProgress(item));
+  const addBranchHref = business ? (emptyDraft ? branchHref(business, emptyDraft) : branchHref(business)) : "";
   const businessNotes = business ? (business.status === "rejected" ? business.field_errors : business.admin_notes) : {};
+  const showReviews = business?.status === "published";
+  const tabs: { id: OwnerTab; label: string; hidden?: boolean }[] = [
+    { id: "branches", label: t("dashboard.tab_branches") },
+    { id: "details", label: t("dashboard.tab_details") },
+    { id: "team", label: t("dashboard.tab_team"), hidden: !canInvite },
+    { id: "reviews", label: t("dashboard.tab_reviews"), hidden: !showReviews },
+  ];
 
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col px-5 py-10">
@@ -309,12 +327,10 @@ function Dashboard() {
       {showOnboarding ? (
         <div className="mt-10">
           <OnboardingForm
-            onCancel={memberships.length ? () => setOnboarding(false) : undefined}
             onCreated={(created) => {
               setMemberships((current) => [...current, { business: created, role: "owner", location_id: null }]);
               setSelectedId(created.id);
-              setOnboarding(false);
-              router.push(branchHref(created));
+              setTab("branches");
             }}
           />
         </div>
@@ -328,10 +344,7 @@ function Dashboard() {
                 <button
                   key={item.business.id}
                   type="button"
-                  onClick={() => {
-                    setSelectedId(item.business.id);
-                    setEditing(false);
-                  }}
+                  onClick={() => setSelectedId(item.business.id)}
                   className={`inline-flex h-9 items-center gap-2 rounded-full border px-3 text-sm ${
                     item.business.id === business.id ? "border-brand bg-[#EEF3F2] text-brand" : "border-line bg-surface text-foreground"
                   }`}
@@ -340,9 +353,6 @@ function Dashboard() {
                   {item.business.name}
                 </button>
               ))}
-              <button type="button" onClick={() => setOnboarding(true)} className="text-sm font-medium text-brand">
-                + {t("dashboard.add_business")}
-              </button>
             </div>
           ) : null}
 
@@ -356,115 +366,151 @@ function Dashboard() {
             </div>
           ) : null}
 
-          <Card className="mt-8">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div className="flex min-w-0 items-center gap-4">
-                <LogoBadge business={business} size="h-16 w-16" />
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h1 className="truncate text-xl font-medium text-foreground">{business.name}</h1>
+          <div className="mt-8 flex flex-wrap items-start justify-between gap-4">
+            <div className="flex min-w-0 items-center gap-4">
+              <LogoBadge business={business} size="h-16 w-16" />
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h1 className="truncate text-xl font-medium text-foreground">{business.name}</h1>
+                  {business.status !== "draft" ? (
                     <BusinessPillView status={business.status} visible={business.visible !== false} />
-                  </div>
-                  <p className="mt-1 text-sm text-muted">
-                    {business.categories.length
-                      ? business.categories.map((category) => t(`categories.${category}`)).join(" · ")
-                      : t("business.no_services_yet")}
-                    {role ? ` · ${t(roleLabel(role))}` : ""}
-                  </p>
+                  ) : null}
                 </div>
+                <p className="mt-1 text-sm text-muted">
+                  {business.categories.length
+                    ? business.categories.map((category) => t(`categories.${category}`)).join(" · ")
+                    : t("business.no_services_yet")}
+                  {role ? ` · ${t(roleLabel(role))}` : ""}
+                </p>
               </div>
-              <div className="flex flex-wrap gap-2">
-                {isOwner ? <VisibilityControl business={business} onChanged={replaceBusiness} /> : null}
+            </div>
+            {isOwner ? <VisibilityControl business={business} onChanged={replaceBusiness} /> : null}
+          </div>
+          <StatusBanner business={business} />
+
+          <nav className="mt-8 flex flex-wrap gap-1 border-b border-line" aria-label={t("dashboard.tabs")}>
+            {tabs
+              .filter((item) => !item.hidden)
+              .map((item) => {
+                const active = tab === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => {
+                      setTab(item.id);
+                      if (item.id !== "details") setEditing(false);
+                    }}
+                    className={`h-11 px-4 text-sm font-medium ${
+                      active ? "border-b-2 border-brand text-brand" : "border-b-2 border-transparent text-muted hover:text-foreground"
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                );
+              })}
+          </nav>
+
+          {tab === "branches" ? (
+            <section className="mt-6">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-medium text-foreground">{t("dashboard.branches")}</h2>
+                  <p className="mt-1 text-sm text-muted">{t("dashboard.branches_body")}</p>
+                </div>
+                {canManageBranches && listedBranches.length > 0 ? (
+                  <Link href={addBranchHref} className={secondaryButton}>
+                    + {t("dashboard.add_branch")}
+                  </Link>
+                ) : null}
+              </div>
+              {listedBranches.length === 0 ? (
+                <div className="mt-4 rounded-2xl border border-dashed border-line bg-surface px-6 py-12 text-center">
+                  <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#EEF3F2] text-brand">
+                    <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                      <path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11Z" />
+                      <circle cx="12" cy="10" r="2.5" />
+                    </svg>
+                  </span>
+                  <h3 className="mt-4 text-lg font-medium text-foreground">{t("dashboard.no_branches")}</h3>
+                  <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted">
+                    {canManageBranches ? t("dashboard.no_branches_body") : t("dashboard.no_branches_member")}
+                  </p>
+                  {canManageBranches ? (
+                    <Link href={addBranchHref} className={`${primaryButton} mt-6`}>
+                      {t("dashboard.create_first_branch")}
+                    </Link>
+                  ) : null}
+                </div>
+              ) : (
+                <ul className="mt-4 grid gap-3">
+                  {listedBranches.map((branch) => (
+                    <li key={branch.id}>
+                      <BranchCard
+                        business={business}
+                        branch={branch}
+                        canManage={canManageBranches}
+                        onChanged={replaceBranch}
+                        onDeleted={(removed) => {
+                          replaceBusiness({ ...business, locations: business.locations.filter((row) => row.id !== removed.id) });
+                          void refresh();
+                        }}
+                      />
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          ) : null}
+
+          {tab === "details" ? (
+            <section className="mt-6">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-medium text-foreground">{t("business.details_title")}</h2>
+                  <p className="mt-1 text-sm text-muted">{t("dashboard.details_body")}</p>
+                </div>
                 {isOwner ? (
                   <button type="button" onClick={() => setEditing((value) => !value)} className={secondaryButton}>
                     {editing ? t("done") : t("dashboard.edit_business")}
                   </button>
                 ) : null}
-                {memberships.length === 1 && isOwner ? (
-                  <button type="button" onClick={() => setOnboarding(true)} className="text-sm font-medium text-brand">
-                    + {t("dashboard.add_business")}
-                  </button>
-                ) : null}
               </div>
-            </div>
-            <StatusBanner business={business} />
-            {!editing && Object.keys(businessNotes).length > 0 ? (
-              <div className={`mt-4 rounded-2xl p-4 ${business.status === "rejected" ? "bg-[#FEF2F2]" : "bg-[#EEF3F2]"}`}>
-                <p className={`text-sm font-medium ${business.status === "rejected" ? "text-[#B91C1C]" : "text-foreground"}`}>
-                  {business.status === "rejected" ? t("dashboard.fix_these") : t("dashboard.notes_title")}
-                </p>
-                <ul className="mt-2 grid gap-2">
-                  {Object.entries(businessNotes).map(([field, message]) => (
-                    <li key={field} className="text-sm text-foreground">
-                      <span className="font-medium">{t(fieldLabelKey(field))}</span>
-                      <span className="mt-0.5 block">{message}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ) : null}
-            {role === "worker" ? <p className="mt-4 text-sm text-muted">{t("dashboard.worker_notice")}</p> : null}
-            <div className="mt-6 border-t border-line pt-6">
-              {editing && isOwner ? (
-                <BusinessEditor business={business} scope="owner" onChanged={replaceBusiness} onClose={() => setEditing(false)} />
-              ) : (
-                <BusinessDetails business={business} showBranches={false} />
-              )}
-            </div>
-          </Card>
-
-          <section className="mt-8">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-medium text-foreground">{t("dashboard.branches")}</h2>
-                <p className="mt-1 text-sm text-muted">{t("dashboard.branches_body")}</p>
-              </div>
-              {canManageBranches && branches.length > 0 ? (
-                <Link href={branchHref(business)} className={secondaryButton}>
-                  + {t("dashboard.add_branch")}
-                </Link>
+              {!editing && Object.keys(businessNotes).length > 0 ? (
+                <div className={`mt-4 rounded-2xl p-4 ${business.status === "rejected" ? "bg-[#FEF2F2]" : "bg-[#EEF3F2]"}`}>
+                  <p className={`text-sm font-medium ${business.status === "rejected" ? "text-[#B91C1C]" : "text-foreground"}`}>
+                    {business.status === "rejected" ? t("dashboard.fix_these") : t("dashboard.notes_title")}
+                  </p>
+                  <ul className="mt-2 grid gap-2">
+                    {Object.entries(businessNotes).map(([field, message]) => (
+                      <li key={field} className="text-sm text-foreground">
+                        <span className="font-medium">{t(fieldLabelKey(field))}</span>
+                        <span className="mt-0.5 block">{message}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               ) : null}
-            </div>
-            {branches.length === 0 ? (
-              <div className="mt-4 rounded-2xl border border-dashed border-line bg-surface px-6 py-12 text-center">
-                <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#EEF3F2] text-brand">
-                  <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-                    <path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11Z" />
-                    <circle cx="12" cy="10" r="2.5" />
-                  </svg>
-                </span>
-                <h3 className="mt-4 text-lg font-medium text-foreground">{t("dashboard.no_branches")}</h3>
-                <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted">
-                  {canManageBranches ? t("dashboard.no_branches_body") : t("dashboard.no_branches_member")}
-                </p>
-                {canManageBranches ? (
-                  <Link href={branchHref(business)} className={`${primaryButton} mt-6`}>
-                    {t("dashboard.create_first_branch")}
-                  </Link>
-                ) : null}
-              </div>
-            ) : (
-              <ul className="mt-4 grid gap-3">
-                {branches.map((branch) => (
-                  <li key={branch.id}>
-                    <BranchCard
-                      business={business}
-                      branch={branch}
-                      canManage={canManageBranches}
-                      onChanged={replaceBranch}
-                      onDeleted={(removed) => {
-                        replaceBusiness({ ...business, locations: business.locations.filter((row) => row.id !== removed.id) });
-                        void refresh();
-                      }}
-                    />
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
+              {role === "worker" ? <p className="mt-4 text-sm text-muted">{t("dashboard.worker_notice")}</p> : null}
+              <Card className="mt-4">
+                {editing && isOwner ? (
+                  <BusinessEditor business={business} scope="owner" onChanged={replaceBusiness} onClose={() => setEditing(false)} />
+                ) : (
+                  <BusinessDetails business={business} showBranches={false} compact />
+                )}
+              </Card>
+              {isOwner ? (
+                <div className="mt-8 flex justify-end">
+                  <button type="button" onClick={() => setDeleteOpen(true)} className={dangerButton}>
+                    {t("dashboard.delete")}
+                  </button>
+                </div>
+              ) : null}
+            </section>
+          ) : null}
 
-          {isOwner || role === "branch_owner" || role === "lead" ? (
-            <Card className="mt-8">
+          {tab === "team" && canInvite ? (
+            <Card className="mt-6">
               <form onSubmit={inviteMember} className="grid gap-3">
                 <h2 className="text-lg font-medium text-foreground">{t("dashboard.team")}</h2>
                 <p className="text-sm text-muted">{t("dashboard.team_hint")}</p>
@@ -488,7 +534,7 @@ function Dashboard() {
                     {t("dashboard.branch")}
                     <select required value={inviteLocation} onChange={(event) => setInviteLocation(event.target.value)} className={inputClass}>
                       <option value="">{t("dashboard.pick_branch")}</option>
-                      {branches
+                      {listedBranches
                         .filter((branch) => branch.status === "published")
                         .map((branch) => (
                           <option key={branch.id} value={branch.id}>
@@ -520,8 +566,8 @@ function Dashboard() {
             </Card>
           ) : null}
 
-          {business.status === "published" ? (
-            <Card className="mt-8">
+          {tab === "reviews" && showReviews ? (
+            <Card className="mt-6">
               <h2 className="text-lg font-medium text-foreground">{t("dashboard.tab_reviews")}</h2>
               {reviews === null ? (
                 <p className="mt-3 text-sm text-muted">{t("loading")}</p>
@@ -552,14 +598,6 @@ function Dashboard() {
               )}
             </Card>
           ) : null}
-
-          {isOwner ? (
-            <div className="mt-8 flex justify-end">
-              <button type="button" onClick={() => setDeleteOpen(true)} className={dangerButton}>
-                {t("dashboard.delete")}
-              </button>
-            </div>
-          ) : null}
         </>
       ) : null}
 
@@ -580,12 +618,12 @@ function Dashboard() {
 
 function StatusBanner({ business }: { business: Business }) {
   const { t } = useI18n();
-  const branches = business.locations;
+  if (business.status === "draft") return null;
   let text: string | null = null;
-  if (business.status === "draft") text = branches.length ? t("dashboard.state_draft_branch") : t("dashboard.state_draft");
-  else if (business.status === "pending_review") text = t("dashboard.state_waiting");
+  if (business.status === "pending_review") text = t("dashboard.state_waiting");
   else if (business.status === "rejected") text = t("dashboard.state_changes");
   else if (business.status === "suspended" || business.visible === false) text = t("dashboard.state_suspended");
-  else text = t("dashboard.state_live");
+  else if (business.status === "published") text = t("dashboard.state_live");
+  if (!text) return null;
   return <p className="mt-4 text-sm leading-6 text-muted">{text}</p>;
 }

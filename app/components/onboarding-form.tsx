@@ -1,40 +1,96 @@
 "use client";
 
-import { FormEvent, useState } from "react";
-import { BusinessDetailsFields, cleanDetails, emptyDetails, type DetailsDraft, type DetailsErrors } from "./business-details-fields";
+import { useEffect, useState } from "react";
+import {
+  BusinessDetailsFields,
+  cleanDetails,
+  emptyDetails,
+  type DetailsDraft,
+  type DetailsErrors,
+  type DetailsSection,
+} from "./business-details-fields";
 import { Card, primaryButton, secondaryButton } from "./form-controls";
-import { apiPost } from "@/lib/api";
-import type { Business } from "@/lib/business";
+import { apiPost, apiUpload } from "@/lib/api";
+import { BUSINESS_IMAGE_ACCEPT, isBusinessImage, type Business } from "@/lib/business";
 import { auth } from "@/lib/firebase";
 import { errorMessage } from "@/lib/errors";
 import { useI18n } from "@/lib/i18n";
 
+type Step = DetailsSection | "logo";
+
+const STEPS: Step[] = ["name", "description", "logo", "phones", "email", "website", "instagram"];
+const OPTIONAL = new Set<Step>(["description", "logo", "phones", "email", "website", "instagram"]);
+
 /**
- * Step one of a new business: who you are. Creates a draft that is not
- * visible anywhere until the first branch is reviewed.
+ * One field at a time, with progress dots like the mobile pet onboarding.
+ * Name is required. Logo and contacts can be skipped.
  */
-export function OnboardingForm({ onCreated, onCancel }: { onCreated: (business: Business) => void; onCancel?: () => void }) {
+export function OnboardingForm({ onCreated }: { onCreated: (business: Business) => void }) {
   const { t, locale } = useI18n();
+  const [step, setStep] = useState(0);
   const [draft, setDraft] = useState<DetailsDraft>(emptyDetails);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState("");
   const [errors, setErrors] = useState<DetailsErrors>({});
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const [nameBlocked, setNameBlocked] = useState(false);
 
-  async function onSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  useEffect(() => {
+    return () => {
+      if (logoPreview) URL.revokeObjectURL(logoPreview);
+    };
+  }, [logoPreview]);
+
+  const current = STEPS[step];
+  const last = step === STEPS.length - 1;
+  const field = current === "logo" ? null : current;
+
+  function go(next: number) {
+    setErrors({});
+    setError("");
+    setStep(next);
+  }
+
+  function validateCurrent(): boolean {
+    if (current === "name") {
+      if (!draft.name.trim()) {
+        setErrors({ name: t("business.fix_name") });
+        return false;
+      }
+      if (nameBlocked) return false;
+    }
+    const result = cleanDetails(draft, t);
+    if (result.errors && field && result.errors[field]) {
+      setErrors({ [field]: result.errors[field] });
+      return false;
+    }
+    setErrors({});
+    return true;
+  }
+
+  async function submit() {
     const user = auth.currentUser;
     if (!user || pending || nameBlocked) return;
     const result = cleanDetails(draft, t);
     if (result.errors) {
+      const first = STEPS.findIndex((item) => item !== "logo" && result.errors?.[item]);
+      if (first >= 0) setStep(first);
       setErrors(result.errors);
       return;
     }
-    setErrors({});
     setPending(true);
     setError("");
     try {
-      const created = await apiPost<Business>("/businesses", await user.getIdToken(), { ...result.body, locale });
+      const token = await user.getIdToken();
+      let created = await apiPost<Business>("/businesses", token, { ...result.body, locale });
+      if (logoFile) {
+        try {
+          created = await apiUpload<Business>(`/businesses/${created.id}/logo`, token, logoFile);
+        } catch {
+          // The business is already created; they can add the logo from Details.
+        }
+      }
       onCreated(created);
     } catch (err: unknown) {
       setError(errorMessage(err, t));
@@ -42,62 +98,156 @@ export function OnboardingForm({ onCreated, onCancel }: { onCreated: (business: 
     }
   }
 
+  function onContinue() {
+    if (!validateCurrent()) return;
+    if (last) void submit();
+    else go(step + 1);
+  }
+
+  function onSkip() {
+    if (!OPTIONAL.has(current)) return;
+    if (last) void submit();
+    else go(step + 1);
+  }
+
+  function pickLogo(file: File | null) {
+    if (logoPreview) URL.revokeObjectURL(logoPreview);
+    if (!file) {
+      setLogoFile(null);
+      setLogoPreview("");
+      setError("");
+      return;
+    }
+    if (!isBusinessImage(file)) {
+      setError(t("business.photo_type"));
+      return;
+    }
+    setError("");
+    setLogoFile(file);
+    setLogoPreview(URL.createObjectURL(file));
+  }
+
   return (
-    <form onSubmit={onSubmit} noValidate className="grid gap-6">
-      <div className="flex items-start gap-4">
-        <Step n={1} active />
-        <div>
-          <h1 className="text-2xl font-medium text-foreground">{t("onboarding.title")}</h1>
-          <p className="mt-2 max-w-xl text-sm leading-6 text-muted">{t("onboarding.body")}</p>
-        </div>
-      </div>
-      <Card>
-        <BusinessDetailsFields
-          draft={draft}
-          onChange={setDraft}
-          errors={errors}
-          autoFocus
-          allowClaim
-          onNameBlocked={setNameBlocked}
-        />
+    <div className="mx-auto w-full max-w-md">
+      <p className="text-sm font-medium text-brand">{t("welcome.kicker")}</p>
+      <ProgressDots current={step + 1} total={STEPS.length} />
+      <h1 className="mt-6 text-3xl font-medium text-foreground">{t("onboarding.title")}</h1>
+      <p className="mt-3 text-base leading-7 text-muted">{t(`onboarding.step_${current}`)}</p>
+
+      <Card className="mt-8">
+        {current === "logo" ? (
+          <LogoStep preview={logoPreview} onPick={pickLogo} />
+        ) : (
+          <BusinessDetailsFields
+            key={current}
+            draft={draft}
+            onChange={setDraft}
+            errors={errors}
+            autoFocus
+            allowClaim={current === "name"}
+            onNameBlocked={setNameBlocked}
+            show={[current]}
+          />
+        )}
       </Card>
-      <div className="grid gap-3 rounded-2xl bg-[#EEF3F2] px-5 py-4 text-sm text-foreground">
-        <div className="flex items-center gap-3">
-          <Step n={2} />
-          <span>{t("onboarding.next_branch")}</span>
-        </div>
-        <div className="flex items-center gap-3">
-          <Step n={3} />
-          <span>{t("onboarding.next_review")}</span>
-        </div>
-      </div>
+
       {error ? (
-        <p className="text-sm text-[#EF4444]" role="alert">
+        <p className="mt-4 text-sm text-[#EF4444]" role="alert">
           {error}
         </p>
       ) : null}
-      <div className="flex flex-col gap-3 sm:flex-row">
-        <button type="submit" disabled={pending || nameBlocked} className={primaryButton}>
-          {pending ? t("saving") : t("onboarding.continue")}
+
+      <div className="mt-6 flex flex-col gap-3">
+        <button
+          type="button"
+          disabled={pending || (current === "name" && nameBlocked)}
+          onClick={onContinue}
+          className={primaryButton}
+        >
+          {pending ? t("saving") : last ? t("onboarding.continue") : t("onboarding.next")}
         </button>
-        {onCancel ? (
-          <button type="button" onClick={onCancel} className={secondaryButton}>
-            {t("back")}
-          </button>
-        ) : null}
+        <div className="flex items-center justify-between gap-3">
+          {step > 0 ? (
+            <button type="button" disabled={pending} onClick={() => go(step - 1)} className={secondaryButton}>
+              {t("back")}
+            </button>
+          ) : (
+            <span />
+          )}
+          {OPTIONAL.has(current) ? (
+            <button type="button" disabled={pending} onClick={onSkip} className="text-sm font-medium text-muted">
+              {t("onboarding.skip")}
+            </button>
+          ) : null}
+        </div>
       </div>
-    </form>
+    </div>
   );
 }
 
-function Step({ n, active = false }: { n: number; active?: boolean }) {
+function ProgressDots({ current, total }: { current: number; total: number }) {
   return (
-    <span
-      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-medium ${
-        active ? "bg-brand text-white" : "border border-brand/30 bg-surface text-brand"
-      }`}
+    <div
+      className="mt-5 flex items-center justify-center gap-2.5"
+      role="progressbar"
+      aria-valuemin={1}
+      aria-valuemax={total}
+      aria-valuenow={current}
     >
-      {n}
-    </span>
+      {Array.from({ length: total }, (_, index) => {
+        const active = index + 1 === current;
+        return (
+          <span
+            key={index}
+            className={active ? "h-2 w-[18px] rounded-[5px] bg-brand" : "h-2 w-2 rounded-full bg-brand/30"}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+function LogoStep({ preview, onPick }: { preview: string; onPick: (file: File | null) => void }) {
+  const { t } = useI18n();
+  return (
+    <div className="grid gap-4">
+      <p className="text-sm font-medium text-foreground">
+        {t("business.logo")}
+        <span className="ms-2 text-xs font-normal text-muted">{t("business.optional")}</span>
+      </p>
+      <div className="flex items-center gap-4">
+        {preview ? (
+          // Local object URL, not a remote image.
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={preview} alt="" className="h-20 w-20 shrink-0 rounded-2xl object-cover" />
+        ) : (
+          <span className="flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl bg-[#EEF3F2] text-2xl text-brand">
+            +
+          </span>
+        )}
+        <div className="grid gap-2">
+          <label className="inline-flex h-10 cursor-pointer items-center justify-center rounded-2xl border border-line bg-surface px-4 text-sm font-medium text-foreground hover:border-brand">
+            {preview ? t("business.change_logo") : t("business.add_logo")}
+            <input
+              type="file"
+              accept={BUSINESS_IMAGE_ACCEPT}
+              className="sr-only"
+              onChange={(event) => {
+                const file = event.target.files?.[0] ?? null;
+                event.target.value = "";
+                onPick(file);
+              }}
+            />
+          </label>
+          {preview ? (
+            <button type="button" onClick={() => onPick(null)} className="text-start text-xs font-medium text-[#EF4444]">
+              {t("business.remove_logo")}
+            </button>
+          ) : (
+            <p className="text-xs text-muted">{t("business.logo_hint")}</p>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
