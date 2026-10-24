@@ -19,7 +19,7 @@ import { useI18n } from "@/lib/i18n";
 
 const EMPTY_COUNTS: BusinessCounts = { pending: 0, published: 0, rejected: 0, deleted: 0 };
 
-type Tab = "review" | "businesses" | "add";
+type Tab = "review" | "history" | "businesses" | "add";
 
 export default function AdminPage() {
   return (
@@ -166,6 +166,9 @@ function Admin() {
         <TabButton active={tab === "review"} count={waitingBranches} onClick={() => setTab("review")}>
           {t("admin.tab_reviews")}
         </TabButton>
+        <TabButton active={tab === "history"} onClick={() => setTab("history")}>
+          {t("admin.tab_history")}
+        </TabButton>
         <TabButton active={tab === "businesses"} onClick={() => setTab("businesses")}>
           {t("admin.tab_businesses")}
         </TabButton>
@@ -200,49 +203,49 @@ function Admin() {
             }}
           />
         </section>
-      ) : (
-        <div className="mt-6 grid gap-8">
-          <section>
-            <h2 className="text-lg font-medium text-foreground">{t("admin.pending_review")}</h2>
-            <p className="mt-1 text-sm text-muted">{t("admin.review_hint")}</p>
-            <AdminReview groups={groups} onDecided={() => void afterDecision()} />
-          </section>
-          <section className="rounded-3xl border border-line bg-surface p-5">
-            <h2 className="text-lg font-medium text-foreground">{t("admin.recent")}</h2>
-            {recent.length === 0 ? (
-              <p className="mt-4 rounded-2xl bg-background px-4 py-8 text-center text-sm text-muted">{t("admin.empty_recent")}</p>
-            ) : (
-              <ul className="mt-4 grid gap-2">
-                {recent.map((business) => {
-                  const open = business.id === openRecentId;
-                  return (
-                    <li key={business.id} className="rounded-2xl bg-background">
-                      <button
-                        type="button"
-                        onClick={() => setOpenRecentId(open ? null : business.id)}
-                        className="flex w-full items-center gap-3 px-4 py-3 text-start"
-                      >
-                        <LogoBadge business={business} size="h-12 w-12" />
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-sm font-medium text-foreground">{business.name}</span>
-                          <span className="mt-1 block text-sm text-muted">
-                            {business.city || "—"} · {t("admin.branch_count", { n: business.locations.length })}
-                          </span>
+      ) : tab === "history" ? (
+        <section className="mt-6 rounded-3xl border border-line bg-surface p-5">
+          <h2 className="text-lg font-medium text-foreground">{t("admin.recent")}</h2>
+          <p className="mt-1 text-sm text-muted">{t("admin.history_hint")}</p>
+          {recent.length === 0 ? (
+            <p className="mt-4 rounded-2xl bg-background px-4 py-8 text-center text-sm text-muted">{t("admin.empty_recent")}</p>
+          ) : (
+            <ul className="mt-4 grid gap-2">
+              {recent.map((business) => {
+                const open = business.id === openRecentId;
+                return (
+                  <li key={business.id} className="rounded-2xl bg-background">
+                    <button
+                      type="button"
+                      onClick={() => setOpenRecentId(open ? null : business.id)}
+                      className="flex w-full items-center gap-3 px-4 py-3 text-start"
+                    >
+                      <LogoBadge business={business} size="h-12 w-12" />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium text-foreground">{business.name}</span>
+                        <span className="mt-1 block text-sm text-muted">
+                          {business.city || "—"} · {t("admin.branch_count", { n: business.locations.length })}
                         </span>
-                        <BusinessPillView status={business.status} visible={business.visible !== false} />
-                      </button>
-                      {open && openRecent ? (
-                        <div className="border-t border-line px-4 py-4">
-                          <BusinessDetails business={openRecent} />
-                        </div>
-                      ) : null}
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-            <div ref={recentSentinel} className="h-1" />
-          </section>
+                      </span>
+                      <BusinessPillView status={business.status} visible={business.visible !== false} />
+                    </button>
+                    {open && openRecent ? (
+                      <div className="border-t border-line px-4 py-4">
+                        <BusinessDetails business={openRecent} />
+                      </div>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          <div ref={recentSentinel} className="h-1" />
+        </section>
+      ) : (
+        <div className="mt-6">
+          <h2 className="text-lg font-medium text-foreground">{t("admin.pending_review")}</h2>
+          <p className="mt-1 text-sm text-muted">{t("admin.review_hint")}</p>
+          <AdminReview groups={groups} onDecided={() => void afterDecision()} />
         </div>
       )}
     </main>

@@ -10,6 +10,7 @@ export type OwnerNotice = {
   id: string;
   name: string;
   detail: string;
+  unread?: boolean;
 };
 
 export function OwnerHeader({
@@ -25,6 +26,7 @@ export function OwnerHeader({
   const [open, setOpen] = useState(false);
   const name = profile.name?.trim() || "";
   const initial = name.slice(0, 1).toUpperCase();
+  const unreadCount = notices.filter((notice) => notice.unread).length;
 
   return (
     <div className="flex items-center justify-between gap-4">
@@ -60,29 +62,41 @@ export function OwnerHeader({
               <path d="M6 9a6 6 0 1 1 12 0c0 7 3 7 3 7H3s3 0 3-7" strokeLinecap="round" strokeLinejoin="round" />
               <path d="M10 19a2 2 0 0 0 4 0" strokeLinecap="round" />
             </svg>
-            {notices.length > 0 ? (
-              <span className="absolute end-1 top-1 h-2.5 w-2.5 rounded-full bg-[#EF4444]" />
+            {unreadCount > 0 ? (
+              <span className="absolute -end-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[#1877F2] px-1 text-[10px] font-medium text-white">
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
             ) : null}
           </button>
           {open ? (
-            <div className="absolute end-0 z-20 mt-2 w-72 rounded-2xl border border-line bg-surface p-3 shadow-lg">
-              <p className="px-2 text-sm font-medium text-foreground">{t("dashboard.notices")}</p>
+            <div className="absolute end-0 z-20 mt-2 w-80 overflow-hidden rounded-2xl border border-line bg-surface shadow-lg">
+              <p className="px-4 py-3 text-sm font-medium text-foreground">{t("dashboard.notices")}</p>
               {notices.length === 0 ? (
-                <p className="px-2 py-3 text-sm text-muted">{t("dashboard.notices_empty")}</p>
+                <p className="px-4 pb-4 text-sm text-muted">{t("dashboard.notices_empty")}</p>
               ) : (
-                <ul className="mt-2 grid gap-1">
+                <ul className="max-h-80 overflow-auto">
                   {notices.map((notice) => (
                     <li key={notice.id}>
                       <button
                         type="button"
                         onClick={() => {
-                          setOpen(false);
                           onOpen(notice.id);
+                          setOpen(false);
                         }}
-                        className="w-full rounded-xl px-2 py-2 text-start hover:bg-background"
+                        className={`flex w-full items-start gap-3 px-4 py-3 text-start ${
+                          notice.unread ? "bg-[#E7F3FF]" : "bg-surface hover:bg-background"
+                        }`}
                       >
-                        <span className="block text-sm font-medium text-foreground">{notice.name}</span>
-                        <span className="mt-1 block text-sm text-muted">{notice.detail}</span>
+                        <span
+                          className={`mt-2 h-2.5 w-2.5 shrink-0 rounded-full ${notice.unread ? "bg-[#1877F2]" : "bg-transparent"}`}
+                          aria-hidden
+                        />
+                        <span className="min-w-0">
+                          <span className={`block text-sm ${notice.unread ? "font-semibold text-foreground" : "font-medium text-foreground"}`}>
+                            {notice.name}
+                          </span>
+                          <span className="mt-1 block text-sm text-muted">{notice.detail}</span>
+                        </span>
                       </button>
                     </li>
                   ))}

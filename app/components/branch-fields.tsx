@@ -29,6 +29,8 @@ export type ServiceDraft = {
   phones: string[];
 };
 
+export type DetailsMode = "shared" | "separate";
+
 export type BranchDraft = {
   address: string;
   city: string;
@@ -39,6 +41,9 @@ export type BranchDraft = {
   phones: string[];
   website: string;
   instagram: string;
+  /** Shared = one hours + contacts block. Separate = each service has its own. */
+  detailsMode: DetailsMode;
+  sharedHours: OpeningHours;
 };
 
 export type BranchErrors = {
@@ -73,6 +78,25 @@ export function branchDraftHasProgress(draft: BranchDraft): boolean {
   );
 }
 
+function cloneHours(hours: OpeningHours): OpeningHours {
+  return JSON.parse(JSON.stringify(hours)) as OpeningHours;
+}
+
+function hoursKey(hours: OpeningHours): string {
+  return JSON.stringify({
+    provided: hours.provided,
+    always_open: hours.always_open,
+    mon: hours.mon,
+    tue: hours.tue,
+    wed: hours.wed,
+    thu: hours.thu,
+    fri: hours.fri,
+    sat: hours.sat,
+    sun: hours.sun,
+    special_dates: hours.special_dates ?? [],
+  });
+}
+
 export function emptyBranchDraft(): BranchDraft {
   return {
     address: "",
@@ -84,27 +108,34 @@ export function emptyBranchDraft(): BranchDraft {
     phones: [],
     website: "",
     instagram: "",
+    detailsMode: "shared",
+    sharedHours: weekdayHours(),
   };
 }
 
 export function branchDraftFrom(branch: Branch): BranchDraft {
   const coordinates = branch.location?.coordinates;
+  const services = branch.services.map((service) => ({
+    id: service.id,
+    key: service.id,
+    category: service.category,
+    hours: { ...service.opening_hours, special_dates: service.opening_hours.special_dates ?? [] },
+    phones: service.phone,
+  }));
+  const hourKeys = new Set(services.map((service) => hoursKey(service.hours)));
+  const separate = services.some((service) => service.phones.length > 0) || hourKeys.size > 1;
   return {
     address: branch.address,
     city: branch.city,
     point: coordinates ? { lat: coordinates[1], lng: coordinates[0] } : null,
     place_ref: branch.place_ref,
     timezone: branch.timezone || null,
-    services: branch.services.map((service) => ({
-      id: service.id,
-      key: service.id,
-      category: service.category,
-      hours: { ...service.opening_hours, special_dates: service.opening_hours.special_dates ?? [] },
-      phones: service.phone,
-    })),
+    services,
     phones: branch.phone,
     website: branch.website ?? "",
     instagram: branch.instagram ?? "",
+    detailsMode: separate ? "separate" : "shared",
+    sharedHours: services[0] ? cloneHours(services[0].hours) : weekdayHours(),
   };
 }
 
@@ -121,17 +152,24 @@ export function cleanBranch(
   if (complete && !draft.address.trim()) errors.address = t("branch.fix_address");
   if (complete && !draft.point) errors.location = t("branch.fix_location");
   if (complete && !draft.services.length) errors.services = t("branch.fix_services");
+  const separate = draft.detailsMode === "separate";
   const seen = new Set<string>();
+  if (!separate) {
+    const problem = hoursError(draft.sharedHours, t);
+    if (problem) errors.hours.shared = problem;
+  }
   for (const service of draft.services) {
     if (seen.has(service.category)) errors.services = t("branch.fix_service_twice");
     seen.add(service.category);
-    const problem = hoursError(service.hours, t);
-    if (problem) errors.hours[service.key] = problem;
-    if (service.phones.some((phone) => phone.trim() && !cleanPhone(phone))) {
-      errors.hours[service.key] = t("business.fix_phone_format");
+    if (separate) {
+      const problem = hoursError(service.hours, t);
+      if (problem) errors.hours[service.key] = problem;
+      if (service.phones.some((phone) => phone.trim() && !cleanPhone(phone))) {
+        errors.hours[service.key] = t("business.fix_phone_format");
+      }
     }
   }
-  const phoneTexts = draft.phones.map((phone) => phone.trim()).filter(Boolean);
+  const phoneTexts = separate ? [] : draft.phones.map((phone) => phone.trim()).filter(Boolean);
   const phones = phoneTexts.map((phone) => cleanPhone(phone));
   if (phones.some((phone) => !phone)) errors.phones = t("business.fix_phone_format");
   const websiteText = draft.website.trim();
@@ -150,8 +188,10 @@ export function cleanBranch(
       services: draft.services.map((service) => ({
         id: service.id,
         category: service.category,
-        opening_hours: service.hours,
-        phone: service.phones.map((phone) => cleanPhone(phone)).filter((phone): phone is string => Boolean(phone)),
+        opening_hours: separate ? service.hours : cloneHours(draft.sharedHours),
+        phone: separate
+          ? service.phones.map((phone) => cleanPhone(phone)).filter((phone): phone is string => Boolean(phone))
+          : [],
       })),
       phone: phones.filter((phone): phone is string => Boolean(phone)),
       website,
@@ -257,10 +297,28 @@ export function BranchFields({
           id: null,
           key: nextKey(),
           category,
-          hours: previous ? { ...previous.hours } : weekdayHours(),
+          hours: cloneHours(draft.detailsMode === "shared" ? draft.sharedHours : previous ? previous.hours : weekdayHours()),
           phones: [],
         },
       ],
+    });
+  }
+
+  function setDetailsMode(detailsMode: DetailsMode) {
+    if (detailsMode === draft.detailsMode) return;
+    if (detailsMode === "separate") {
+      onChange({
+        ...draft,
+        detailsMode,
+        services: draft.services.map((service) => ({ ...service, hours: cloneHours(draft.sharedHours) })),
+      });
+      return;
+    }
+    onChange({
+      ...draft,
+      detailsMode,
+      sharedHours: draft.services[0] ? cloneHours(draft.services[0].hours) : draft.sharedHours,
+      services: draft.services.map((service) => ({ ...service, phones: [] })),
     });
   }
 
@@ -359,7 +417,9 @@ export function BranchFields({
       <section className="grid gap-4">
         <div>
           <h2 className="text-lg font-medium text-foreground">{t("branch.services_title")}</h2>
-          <p className="mt-1 text-sm leading-6 text-muted">{t("branch.services_body")}</p>
+          <p className="mt-1 text-sm leading-6 text-muted">
+            {draft.detailsMode === "separate" ? t("branch.services_body_separate") : t("branch.services_body")}
+          </p>
         </div>
         {notes?.services ? <p className="rounded-xl bg-[#FEF2F2] px-3 py-2 text-sm text-[#B91C1C]">{notes.services}</p> : null}
         {notes?.hours ? <p className="rounded-xl bg-[#FEF2F2] px-3 py-2 text-sm text-[#B91C1C]">{notes.hours}</p> : null}
@@ -402,54 +462,57 @@ export function BranchFields({
                 )}
               </div>
               {note ? <p className="mt-3 rounded-xl bg-[#FEF2F2] px-3 py-2 text-sm text-[#B91C1C]">{note}</p> : null}
-              <div className="mt-4">
-                <p className="text-sm font-medium text-foreground">{t("business.hours")}</p>
-                <div className="mt-2">
-                  <HoursEditor
-                    hours={service.hours}
-                    onChange={(hours) => updateService(service.key, { hours })}
-                    copyOptions={draft.services
-                      .filter((other) => other.key !== service.key && other.hours.provided)
-                      .map((other) => ({ id: other.key, label: t(`categories.${other.category}`) }))}
-                    onCopyFrom={(key) => {
-                      const source = draft.services.find((other) => other.key === key);
-                      if (source) updateService(service.key, { hours: JSON.parse(JSON.stringify(source.hours)) as OpeningHours });
-                    }}
-                  />
-                </div>
-                {errors.hours[service.key] ? (
-                  <p className="mt-2 text-sm text-[#EF4444]" role="alert">
-                    {errors.hours[service.key]}
-                  </p>
-                ) : null}
-              </div>
-              <div className="mt-4">
-                <p className="text-sm font-medium text-foreground">
-                  {t("branch.service_phone")} <span className="text-xs font-normal text-muted">{t("business.optional")}</span>
-                </p>
-                <p className="mt-0.5 text-xs text-muted">{t("branch.service_phone_hint")}</p>
-                <div className="mt-2">
-                  {service.phones.length === 0 ? (
-                    <button
-                      type="button"
-                      onClick={() => updateService(service.key, { phones: [""] })}
-                      className="text-sm font-medium text-brand"
-                    >
-                      + {t("business.add_phone")}
-                    </button>
-                  ) : (
-                    <PhoneList
-                      phones={service.phones}
-                      onChange={(phones) => updateService(service.key, { phones: phones.filter((phone, i, all) => phone.trim() || all.length === 1) })}
-                      addLabel={t("business.add_phone")}
-                      removeLabel={t("business.remove_phone")}
-                      placeholder="+373 ..."
-                    />
-                  )}
-                </div>
-              </div>
-              {index === draft.services.length - 1 && draft.services.length === 1 && !service.hours.provided ? (
-                <p className="mt-3 text-xs text-muted">{t("branch.hours_unlisted_hint")}</p>
+              {draft.detailsMode === "separate" ? (
+                <>
+                  <div className="mt-4">
+                    <p className="text-sm font-medium text-foreground">{t("business.hours")}</p>
+                    <div className="mt-2">
+                      <HoursEditor
+                        hours={service.hours}
+                        onChange={(hours) => updateService(service.key, { hours })}
+                        copyOptions={draft.services
+                          .filter((other) => other.key !== service.key && other.hours.provided)
+                          .map((other) => ({ id: other.key, label: t(`categories.${other.category}`) }))}
+                        onCopyFrom={(key) => {
+                          const source = draft.services.find((other) => other.key === key);
+                          if (source) updateService(service.key, { hours: cloneHours(source.hours) });
+                        }}
+                      />
+                    </div>
+                    {errors.hours[service.key] ? (
+                      <p className="mt-2 text-sm text-[#EF4444]" role="alert">
+                        {errors.hours[service.key]}
+                      </p>
+                    ) : null}
+                  </div>
+                  <div className="mt-4">
+                    <p className="text-sm font-medium text-foreground">
+                      {t("branch.service_phone")} <span className="text-xs font-normal text-muted">{t("business.optional")}</span>
+                    </p>
+                    <p className="mt-0.5 text-xs text-muted">{t("branch.service_phone_hint")}</p>
+                    <div className="mt-2">
+                      {service.phones.length === 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => updateService(service.key, { phones: [""] })}
+                          className="text-sm font-medium text-brand"
+                        >
+                          + {t("business.add_phone")}
+                        </button>
+                      ) : (
+                        <PhoneList
+                          phones={service.phones}
+                          onChange={(phones) => updateService(service.key, { phones: phones.filter((phone, i, all) => phone.trim() || all.length === 1) })}
+                          addLabel={t("business.add_phone")}
+                          removeLabel={t("business.remove_phone")}
+                          placeholder="+373 ..."
+                        />
+                      )}
+                    </div>
+                  </div>
+                </>
+              ) : index === 0 ? (
+                <p className="mt-3 text-xs text-muted">{t("branch.shared_on_service")}</p>
               ) : null}
             </div>
           );
@@ -470,47 +533,90 @@ export function BranchFields({
         ) : null}
       </section>
 
-      <section className="grid gap-4">
-        <div>
-          <h2 className="text-lg font-medium text-foreground">{t("branch.contact_title")}</h2>
-          <p className="mt-1 text-sm leading-6 text-muted">{t("branch.contact_body")}</p>
-        </div>
-        <Field label={t("business.phones")} optional={t("business.optional")} error={errors.phones} note={notes?.phone}>
-          <div className="mt-2">
-            {draft.phones.length === 0 ? (
-              <button type="button" onClick={() => onChange({ ...draft, phones: [""] })} className="text-sm font-medium text-brand">
-                + {t("branch.own_phone")}
-              </button>
-            ) : (
-              <PhoneList
-                phones={draft.phones}
-                onChange={(phones) => onChange({ ...draft, phones })}
-                addLabel={t("business.add_phone")}
-                removeLabel={t("business.remove_phone")}
-                placeholder="+373 ..."
-              />
-            )}
+      {draft.detailsMode === "shared" ? (
+        <section className="grid gap-4">
+          <div>
+            <h2 className="text-lg font-medium text-foreground">{t("branch.shared_title")}</h2>
+            <p className="mt-1 text-sm leading-6 text-muted">{t("branch.shared_body")}</p>
           </div>
-        </Field>
-        <div className="grid gap-5 sm:grid-cols-2">
-          <Field label={t("business.website")} optional={t("business.optional")} error={errors.website} note={notes?.website}>
-            <input
-              className={inputClass}
-              value={draft.website}
-              placeholder="example.com"
-              onChange={(event) => onChange({ ...draft, website: event.target.value })}
-            />
+          <div>
+            <p className="text-sm font-medium text-foreground">{t("business.hours")}</p>
+            <div className="mt-2">
+              <HoursEditor hours={draft.sharedHours} onChange={(sharedHours) => onChange({ ...draft, sharedHours })} />
+            </div>
+            {errors.hours.shared ? (
+              <p className="mt-2 text-sm text-[#EF4444]" role="alert">
+                {errors.hours.shared}
+              </p>
+            ) : null}
+          </div>
+          <Field label={t("business.phones")} optional={t("business.optional")} error={errors.phones} note={notes?.phone}>
+            <div className="mt-2">
+              {draft.phones.length === 0 ? (
+                <button type="button" onClick={() => onChange({ ...draft, phones: [""] })} className="text-sm font-medium text-brand">
+                  + {t("branch.own_phone")}
+                </button>
+              ) : (
+                <PhoneList
+                  phones={draft.phones}
+                  onChange={(phones) => onChange({ ...draft, phones })}
+                  addLabel={t("business.add_phone")}
+                  removeLabel={t("business.remove_phone")}
+                  placeholder="+373 ..."
+                />
+              )}
+            </div>
           </Field>
-          <Field label={t("business.instagram")} optional={t("business.optional")} error={errors.instagram} note={notes?.instagram}>
-            <input
-              className={inputClass}
-              value={draft.instagram}
-              placeholder="@name"
-              onChange={(event) => onChange({ ...draft, instagram: event.target.value })}
-            />
-          </Field>
-        </div>
-      </section>
+          <div className="grid gap-5 sm:grid-cols-2">
+            <Field label={t("business.website")} optional={t("business.optional")} error={errors.website} note={notes?.website}>
+              <input
+                className={inputClass}
+                value={draft.website}
+                placeholder="example.com"
+                onChange={(event) => onChange({ ...draft, website: event.target.value })}
+              />
+            </Field>
+            <Field label={t("business.instagram")} optional={t("business.optional")} error={errors.instagram} note={notes?.instagram}>
+              <input
+                className={inputClass}
+                value={draft.instagram}
+                placeholder="@name"
+                onChange={(event) => onChange({ ...draft, instagram: event.target.value })}
+              />
+            </Field>
+          </div>
+        </section>
+      ) : (
+        <section className="grid gap-4">
+          <div>
+            <h2 className="text-lg font-medium text-foreground">{t("branch.contact_title")}</h2>
+            <p className="mt-1 text-sm leading-6 text-muted">{t("branch.contact_body_separate")}</p>
+          </div>
+          <div className="grid gap-5 sm:grid-cols-2">
+            <Field label={t("business.website")} optional={t("business.optional")} error={errors.website} note={notes?.website}>
+              <input
+                className={inputClass}
+                value={draft.website}
+                placeholder="example.com"
+                onChange={(event) => onChange({ ...draft, website: event.target.value })}
+              />
+            </Field>
+            <Field label={t("business.instagram")} optional={t("business.optional")} error={errors.instagram} note={notes?.instagram}>
+              <input
+                className={inputClass}
+                value={draft.instagram}
+                placeholder="@name"
+                onChange={(event) => onChange({ ...draft, instagram: event.target.value })}
+              />
+            </Field>
+          </div>
+        </section>
+      )}
+      {draft.services.length > 0 ? (
+        <button type="button" onClick={() => setDetailsMode(draft.detailsMode === "shared" ? "separate" : "shared")} className="text-sm font-medium text-brand">
+          {draft.detailsMode === "shared" ? t("branch.use_separate") : t("branch.use_shared")}
+        </button>
+      ) : null}
     </div>
   );
 }

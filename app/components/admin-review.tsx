@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { BranchSummary, BusinessDetails } from "./business-details";
+import { BranchSummary } from "./business-details";
+import { LogoBadge } from "./business-logo";
 import { inputClass, primaryButton, secondaryButton } from "./form-controls";
 import { apiPost } from "@/lib/api";
 import {
@@ -143,24 +144,37 @@ function ReviewCard({ group, onDecided }: { group: ReviewGroup; onDecided: () =>
 
   return (
     <article className="rounded-3xl border border-line bg-surface p-5 sm:p-6">
-      <div className="flex flex-wrap items-center gap-2">
-        {group.first_request ? (
-          <span className="rounded-full bg-[#FEF3C7] px-2.5 py-1 text-xs font-medium text-[#92400E]">{t("admin.first_request")}</span>
-        ) : (
-          <span className="rounded-full bg-[#EEF3F2] px-2.5 py-1 text-xs font-medium text-brand">{t("admin.existing_business")}</span>
-        )}
-        {group.waiting_since ? (
-          <span className="text-xs text-muted">{t("admin.waiting_since", { when: since(group.waiting_since, locale) })}</span>
-        ) : null}
-        {group.owner_email ? (
-          <a href={`mailto:${group.owner_email}`} className="ms-auto text-xs font-medium text-brand">
-            {group.owner_email}
-          </a>
-        ) : null}
-      </div>
-
-      <div className="mt-5">
-        <BusinessDetails business={business} showBranches={false} />
+      <div className="flex flex-wrap items-start gap-4">
+        <LogoBadge business={business} size="h-14 w-14" />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-lg font-medium text-foreground">{business.name}</h3>
+            {group.first_request ? (
+              <span className="rounded-full bg-[#FEF3C7] px-2.5 py-1 text-xs font-medium text-[#92400E]">{t("admin.first_request")}</span>
+            ) : (
+              <span className="rounded-full bg-[#EEF3F2] px-2.5 py-1 text-xs font-medium text-brand">{t("admin.existing_business")}</span>
+            )}
+          </div>
+          <p className="mt-1 text-sm text-muted">
+            {business.categories.length
+              ? business.categories.map((category) => t(`categories.${category}`)).join(" · ")
+              : t("business.no_services_yet")}
+            {business.city ? ` · ${business.city}` : ""}
+          </p>
+          <p className="mt-1 text-sm text-muted">
+            {group.waiting_since ? t("admin.waiting_since", { when: since(group.waiting_since, locale) }) : null}
+            {group.owner_email ? (
+              <>
+                {group.waiting_since ? " · " : null}
+                <a href={`mailto:${group.owner_email}`} className="font-medium text-brand">
+                  {group.owner_email}
+                </a>
+              </>
+            ) : null}
+          </p>
+          {business.description ? <p className="mt-2 text-sm leading-6 text-foreground">{business.description}</p> : null}
+          {business.phone.length ? <p className="mt-1 text-sm text-muted">{business.phone.join(" · ")}</p> : null}
+        </div>
       </div>
 
       {group.first_request ? (

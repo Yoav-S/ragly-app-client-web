@@ -241,12 +241,13 @@ function Dashboard() {
     const notice = notices.find((item) => item.id === id);
     if (notice) {
       setSelectedId(notice.business_id);
+      setTab("branches");
     }
-    setNotices([]);
+    setNotices((current) => current.map((item) => (item.id === id ? { ...item, unread: false } : item)));
     const user = auth.currentUser;
     if (user) {
       try {
-        await apiPost("/businesses/seen", await user.getIdToken(), {});
+        await apiPost("/businesses/seen", await user.getIdToken(), { event_id: id });
       } catch {
         // Not worth an error banner; they show again next load.
       }
@@ -281,6 +282,7 @@ function Dashboard() {
       address: event.address ?? "",
       message: event.message ?? "",
     }),
+    unread: Boolean(event.unread),
   }));
 
   const ownerMembership = memberships.find((item) => item.role === "owner") ?? null;
@@ -387,7 +389,7 @@ function Dashboard() {
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <h1 className="truncate text-xl font-medium text-foreground">{business.name}</h1>
-                  {business.status !== "draft" ? (
+                  {business.status === "published" || business.status === "rejected" || business.status === "suspended" ? (
                     <BusinessPillView status={business.status} visible={business.visible !== false} />
                   ) : null}
                 </div>
@@ -633,10 +635,9 @@ function Dashboard() {
 
 function StatusBanner({ business }: { business: Business }) {
   const { t } = useI18n();
-  if (business.status === "draft") return null;
+  if (business.status === "draft" || business.status === "pending_review") return null;
   let text: string | null = null;
-  if (business.status === "pending_review") text = t("dashboard.state_waiting");
-  else if (business.status === "rejected") text = t("dashboard.state_changes");
+  if (business.status === "rejected") text = t("dashboard.state_changes");
   else if (business.status === "suspended" || business.visible === false) text = t("dashboard.state_suspended");
   else if (business.status === "published") text = t("dashboard.state_live");
   if (!text) return null;

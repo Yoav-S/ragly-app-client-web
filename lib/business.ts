@@ -169,6 +169,7 @@ export type BusinessEvent = {
   audience: "owner" | "admins";
   message: string | null;
   created_at: string;
+  unread?: boolean;
 };
 
 export type BusinessSession = {
