@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useState } from "react";
 import { apiPatch } from "@/lib/api";
 import type { Business } from "@/lib/business";
 import { errorMessage } from "@/lib/errors";
@@ -21,18 +21,6 @@ export function VisibilityControl({
   const { t } = useI18n();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
-  const [hintOpen, setHintOpen] = useState(false);
-  const hintId = useId();
-  const wrapRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!hintOpen) return;
-    function onPointer(event: MouseEvent) {
-      if (!wrapRef.current?.contains(event.target as Node)) setHintOpen(false);
-    }
-    document.addEventListener("mousedown", onPointer);
-    return () => document.removeEventListener("mousedown", onPointer);
-  }, [hintOpen]);
 
   if (business.status !== "published") return null;
   const hidden = business.visible === false;
@@ -52,10 +40,11 @@ export function VisibilityControl({
   }
 
   return (
-    <div ref={wrapRef} className="flex flex-wrap items-center gap-2">
+    <div>
       <button
         type="button"
         disabled={pending}
+        title={t("dashboard.force_hint")}
         onClick={() => void toggle()}
         className={
           hidden
@@ -65,29 +54,8 @@ export function VisibilityControl({
       >
         {pending ? t("saving") : hidden ? t("dashboard.force_active") : t("dashboard.force_inactive")}
       </button>
-      <div className="relative">
-        <button
-          type="button"
-          aria-expanded={hintOpen}
-          aria-controls={hintId}
-          onClick={() => setHintOpen((value) => !value)}
-          className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-line text-xs font-medium text-muted hover:border-brand hover:text-foreground"
-        >
-          i
-          <span className="sr-only">{t("dashboard.force_hint_label")}</span>
-        </button>
-        {hintOpen ? (
-          <p
-            id={hintId}
-            role="tooltip"
-            className="absolute end-0 z-20 mt-2 w-64 rounded-2xl border border-line bg-surface px-4 py-3 text-sm leading-6 text-foreground shadow-sm"
-          >
-            {t("dashboard.force_hint")}
-          </p>
-        ) : null}
-      </div>
       {error ? (
-        <p className="basis-full text-sm text-[#EF4444]" role="alert">
+        <p className="mt-2 text-sm text-[#EF4444]" role="alert">
           {error}
         </p>
       ) : null}
