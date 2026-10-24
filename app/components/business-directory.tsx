@@ -8,7 +8,7 @@ import { BusinessEditor } from "./business-editor";
 import { LogoBadge } from "./business-logo";
 import { ConfirmModal } from "./confirm-modal";
 import { dangerButton, inputClass, secondaryButton } from "./form-controls";
-import { BusinessPillView } from "./status-pill";
+import { VisibilityControl } from "./visibility-control";
 import { apiDelete, apiGet, apiPost } from "@/lib/api";
 import { auth } from "@/lib/firebase";
 import { errorMessage } from "@/lib/errors";
@@ -268,7 +268,6 @@ export function BusinessDirectory({
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <h2 className="truncate text-xl font-medium text-foreground">{selected.name}</h2>
-                    <BusinessPillView status={selected.status} />
                   </div>
                   <p className="mt-1 text-sm text-muted">
                     {selected.owned ? selected.owner_email || t("admin.owned") : t("admin.not_owned")}
@@ -276,6 +275,7 @@ export function BusinessDirectory({
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
+                <VisibilityControl business={selected} onChanged={replace} />
                 <button type="button" onClick={() => setEditing((value) => !value)} className={secondaryButton}>
                   {editing ? t("done") : t("dashboard.edit_business")}
                 </button>

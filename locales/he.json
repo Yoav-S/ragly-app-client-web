@@ -87,6 +87,10 @@
     "state_changes": "שלחנו את זה בחזרה. ההערות למטה אומרות מה לשנות.",
     "state_suspended": "העסק מוסתר מהאפליקציה.",
     "state_live": "באוויר באפליקציית Ragly. בעלי חיות יכולים למצוא את הסניפים שפורסמו.",
+    "force_inactive": "הפוך ללא פעיל",
+    "force_active": "הצג באפליקציה",
+    "force_hint_label": "מה הכפתור עושה",
+    "force_hint": "מסתיר את העסק ממשתמשי האפליקציה. לשיפוץ או להפסקה. אפשר להציג שוב בכל רגע.",
     "delete_body": "זה מוחק את העסק ואת הסניפים שלו. אי אפשר לבטל."
   },
   "business": {
@@ -201,6 +205,7 @@
     "changes": "דרושים שינויים",
     "active": "פעיל",
     "paused": "מושהה",
+    "inactive": "לא פעיל",
     "suspended": "מושעה"
   },
   "onboarding": {
@@ -313,6 +318,8 @@
     "business_created": "נוצר עסק חדש.",
     "business_updated": "פרטי העסק עודכנו.",
     "business_published": "העסק באוויר באפליקציית Ragly.",
+    "business_paused": "העסק הוסתר מהאפליקציה.",
+    "business_resumed": "העסק מוצג שוב באפליקציה.",
     "branch_created": "נשמר סניף: {address}",
     "branch_updated": "עודכן סניף: {address}",
     "branch_sent": "סניף נשלח לבדיקה: {address}",

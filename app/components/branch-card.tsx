@@ -6,7 +6,7 @@ import { ConfirmModal } from "./confirm-modal";
 import { secondaryButton } from "./form-controls";
 import { HoursSummary } from "./hours-editor";
 import { BranchPillView } from "./status-pill";
-import { ApiError, apiDelete, apiPatch, apiPost } from "@/lib/api";
+import { ApiError, apiDelete, apiPost } from "@/lib/api";
 import { fieldLabelKey, type Branch, type Business } from "@/lib/business";
 import { auth } from "@/lib/firebase";
 import { errorMessage } from "@/lib/errors";
@@ -67,8 +67,6 @@ export function BranchCard({
 
   const send = () => run(async () => onChanged(await apiPost<Branch>(`${base}/send`, await token(), {})));
   const withdraw = () => run(async () => onChanged(await apiPost<Branch>(`${base}/withdraw`, await token(), {})));
-  const setVisible = (visible: boolean) =>
-    run(async () => onChanged(await apiPatch<Branch>(`${base}/visibility`, await token(), { visible, reason: null })));
   const remove = () =>
     run(async () => {
       await apiDelete(base, await token());
@@ -150,11 +148,6 @@ export function BranchCard({
             {branch.status === "pending_review" ? (
               <button type="button" disabled={pending} onClick={() => void withdraw()} className={secondaryButton}>
                 {t("branch.withdraw")}
-              </button>
-            ) : null}
-            {branch.status === "published" && (branch.visible || branch.hidden_by !== "admin") ? (
-              <button type="button" disabled={pending} onClick={() => void setVisible(!branch.visible)} className={secondaryButton}>
-                {branch.visible ? t("branch.pause") : t("branch.resume")}
               </button>
             ) : null}
             {branch.status !== "published" ? (

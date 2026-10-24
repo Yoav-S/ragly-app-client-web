@@ -164,7 +164,11 @@
     "state_waiting": "O verificăm. Stăpânii nu o văd încă.",
     "state_changes": "Am trimis-o înapoi. Notele de mai jos spun ce trebuie schimbat.",
     "state_suspended": "Această afacere este ascunsă din aplicație.",
-    "state_live": "Vizibilă în aplicația Ragly. Stăpânii găsesc filialele publicate."
+    "state_live": "Vizibilă în aplicația Ragly. Stăpânii găsesc filialele publicate.",
+    "force_inactive": "Forțează inactiv",
+    "force_active": "Arată în aplicație",
+    "force_hint_label": "Ce face acest buton",
+    "force_hint": "Ascunde această afacere din aplicația Ragly. Folosește-l pentru renovare sau o pauză. O poți arăta din nou oricând."
   },
   "business": {
     "title": "Publică afacerea",
@@ -416,6 +420,7 @@
     "changes": "Necesită modificări",
     "active": "Activ",
     "paused": "Pus pe pauză",
+    "inactive": "Inactiv",
     "suspended": "Suspendat"
   },
   "onboarding": {
@@ -528,6 +533,8 @@
     "business_created": "A fost creată o afacere nouă.",
     "business_updated": "Detaliile afacerii au fost actualizate.",
     "business_published": "Afacerea e vizibilă în aplicația Ragly.",
+    "business_paused": "Afacerea a fost ascunsă din aplicație.",
+    "business_resumed": "Afacerea e din nou vizibilă în aplicație.",
     "branch_created": "A fost salvată o filială: {address}",
     "branch_updated": "A fost actualizată o filială: {address}",
     "branch_sent": "O filială a fost trimisă la verificare: {address}",

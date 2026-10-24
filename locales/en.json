@@ -164,7 +164,11 @@
     "state_waiting": "We are reviewing this. Pet owners cannot see it yet.",
     "state_changes": "We sent this back. The notes below say what to change.",
     "state_suspended": "This business is hidden from the app.",
-    "state_live": "Live in the Ragly app. Pet owners can find the published branches."
+    "state_live": "Live in the Ragly app. Pet owners can find the published branches.",
+    "force_inactive": "Force inactive",
+    "force_active": "Show in the app",
+    "force_hint_label": "What this does",
+    "force_hint": "Hides this business from people in the Ragly app. Use it for a renovation or a break. You can show it again anytime."
   },
   "business": {
     "title": "Publish your business",
@@ -416,6 +420,7 @@
     "changes": "Needs changes",
     "active": "Active",
     "paused": "Paused",
+    "inactive": "Inactive",
     "suspended": "Suspended"
   },
   "onboarding": {
@@ -528,6 +533,8 @@
     "business_created": "A new business was created.",
     "business_updated": "Business details were updated.",
     "business_published": "The business is live in the Ragly app.",
+    "business_paused": "The business was hidden from the app.",
+    "business_resumed": "The business is shown in the app again.",
     "branch_created": "A branch was saved: {address}",
     "branch_updated": "A branch was updated: {address}",
     "branch_sent": "A branch was sent for review: {address}",

@@ -229,7 +229,7 @@ function Admin() {
                             {business.city || "—"} · {t("admin.branch_count", { n: business.locations.length })}
                           </span>
                         </span>
-                        <BusinessPillView status={business.status} />
+                        <BusinessPillView status={business.status} visible={business.visible !== false} />
                       </button>
                       {open && openRecent ? (
                         <div className="border-t border-line px-4 py-4">

@@ -14,6 +14,7 @@ import { NameGate } from "../components/name-gate";
 import { OnboardingForm } from "../components/onboarding-form";
 import { OwnerHeader, type OwnerNotice } from "../components/owner-header";
 import { BusinessPillView } from "../components/status-pill";
+import { VisibilityControl } from "../components/visibility-control";
 import { apiDelete, apiGet, apiPost, type UserProfile } from "@/lib/api";
 import { auth } from "@/lib/firebase";
 import {
@@ -362,7 +363,7 @@ function Dashboard() {
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <h1 className="truncate text-xl font-medium text-foreground">{business.name}</h1>
-                    <BusinessPillView status={business.status} />
+                    <BusinessPillView status={business.status} visible={business.visible !== false} />
                   </div>
                   <p className="mt-1 text-sm text-muted">
                     {business.categories.length
@@ -373,6 +374,7 @@ function Dashboard() {
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
+                {isOwner ? <VisibilityControl business={business} onChanged={replaceBusiness} /> : null}
                 {isOwner ? (
                   <button type="button" onClick={() => setEditing((value) => !value)} className={secondaryButton}>
                     {editing ? t("done") : t("dashboard.edit_business")}
@@ -583,7 +585,7 @@ function StatusBanner({ business }: { business: Business }) {
   if (business.status === "draft") text = branches.length ? t("dashboard.state_draft_branch") : t("dashboard.state_draft");
   else if (business.status === "pending_review") text = t("dashboard.state_waiting");
   else if (business.status === "rejected") text = t("dashboard.state_changes");
-  else if (business.status === "suspended") text = t("dashboard.state_suspended");
+  else if (business.status === "suspended" || business.visible === false) text = t("dashboard.state_suspended");
   else text = t("dashboard.state_live");
   return <p className="mt-4 text-sm leading-6 text-muted">{text}</p>;
 }

@@ -33,20 +33,26 @@ export function Pill({ kind, label }: { kind: BranchPill; label: string }) {
 export function BranchPillView({ branch }: { branch: Branch }) {
   const { t } = useI18n();
   const kind = branchPill(branch);
+  if (kind === "active") return null;
   return <Pill kind={kind} label={t(`status.${kind}`)} />;
 }
 
-export function businessPill(status: BusinessStatus): BranchPill {
-  if (status === "published") return "active";
+export function businessPill(status: BusinessStatus, visible = true): BranchPill {
+  if (status === "published") return visible ? "active" : "paused";
   if (status === "pending_review") return "waiting";
   if (status === "rejected") return "changes";
   if (status === "suspended") return "paused";
   return "draft";
 }
 
-export function BusinessPillView({ status }: { status: BusinessStatus }) {
+export function BusinessPillView({ status, visible = true }: { status: BusinessStatus; visible?: boolean }) {
   const { t } = useI18n();
-  const kind = businessPill(status);
-  const label = status === "suspended" ? t("status.suspended") : t(`status.${kind}`);
+  const kind = businessPill(status, visible);
+  const label =
+    status === "published" && !visible
+      ? t("status.inactive")
+      : status === "suspended"
+        ? t("status.suspended")
+        : t(`status.${kind}`);
   return <Pill kind={kind} label={label} />;
 }

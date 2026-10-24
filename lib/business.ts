@@ -126,6 +126,7 @@ export type Business = {
   categories: BusinessCategory[];
   city: string;
   status: BusinessStatus;
+  visible: boolean;
   address: string;
   timezone: string;
   opening_hours: OpeningHours;
