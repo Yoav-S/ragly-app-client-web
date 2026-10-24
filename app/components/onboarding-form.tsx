@@ -4,14 +4,23 @@ import { useEffect, useState } from "react";
 import {
   BusinessDetailsFields,
   cleanDetails,
+  detailsFromBody,
   emptyDetails,
   type DetailsDraft,
   type DetailsErrors,
   type DetailsSection,
 } from "./business-details-fields";
 import { Card, primaryButton, secondaryButton } from "./form-controls";
-import { apiPost, apiUpload } from "@/lib/api";
-import { BUSINESS_IMAGE_ACCEPT, isBusinessImage, type Business } from "@/lib/business";
+import { apiPatch, apiPost, apiUpload } from "@/lib/api";
+import {
+  BUSINESS_IMAGE_ACCEPT,
+  businessLogo,
+  detailsBody,
+  isBusinessImage,
+  type Business,
+  type BusinessDetailsBody,
+  type OnboardingStep,
+} from "@/lib/business";
 import { auth } from "@/lib/firebase";
 import { errorMessage } from "@/lib/errors";
 import { useI18n } from "@/lib/i18n";
@@ -20,27 +29,53 @@ type Step = DetailsSection | "logo";
 
 const STEPS: Step[] = ["name", "description", "logo", "phones", "email", "website", "instagram"];
 const OPTIONAL = new Set<Step>(["description", "logo", "phones", "email", "website", "instagram"]);
+const AFTER: Record<Step, OnboardingStep> = {
+  name: "description",
+  description: "logo",
+  logo: "phones",
+  phones: "email",
+  email: "website",
+  website: "instagram",
+  instagram: "done",
+};
+
+function stepIndex(saved?: string | null): number {
+  if (!saved || saved === "done") return 0;
+  const index = STEPS.indexOf(saved as Step);
+  return index >= 0 ? index : 1;
+}
 
 /**
- * One field at a time, with progress dots like the mobile pet onboarding.
- * Name is required. Logo and contacts can be skipped.
+ * One field at a time. Name is required and saved immediately so a refresh
+ * resumes here. Everything after that can be skipped. The dashboard stays
+ * closed until the last step is finished or skipped.
  */
-export function OnboardingForm({ onCreated }: { onCreated: (business: Business) => void }) {
+export function OnboardingForm({
+  business,
+  onChanged,
+  onFinished,
+}: {
+  business?: Business | null;
+  onChanged: (business: Business) => void;
+  onFinished: (business: Business) => void;
+}) {
   const { t, locale } = useI18n();
-  const [step, setStep] = useState(0);
-  const [draft, setDraft] = useState<DetailsDraft>(emptyDetails);
-  const [logoFile, setLogoFile] = useState<File | null>(null);
-  const [logoPreview, setLogoPreview] = useState("");
+  const [step, setStep] = useState(() => stepIndex(business?.onboarding_step));
+  const [draft, setDraft] = useState<DetailsDraft>(() => (business ? detailsFromBody(detailsBody(business)) : emptyDetails()));
+  const [saved, setSaved] = useState<Business | null>(business ?? null);
+  const [logoPreview, setLogoPreview] = useState(() => (business ? businessLogo(business) ?? "" : ""));
   const [errors, setErrors] = useState<DetailsErrors>({});
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const [nameBlocked, setNameBlocked] = useState(false);
 
   useEffect(() => {
-    return () => {
-      if (logoPreview) URL.revokeObjectURL(logoPreview);
-    };
-  }, [logoPreview]);
+    if (!business) return;
+    setSaved(business);
+    setDraft(detailsFromBody(detailsBody(business)));
+    setLogoPreview((current) => current || businessLogo(business) || "");
+    setStep((current) => (current === 0 && business.onboarding_step ? stepIndex(business.onboarding_step) : current));
+  }, [business?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const current = STEPS[step];
   const last = step === STEPS.length - 1;
@@ -69,52 +104,56 @@ export function OnboardingForm({ onCreated }: { onCreated: (business: Business) 
     return true;
   }
 
-  async function submit() {
+  async function persist(nextStep: OnboardingStep): Promise<Business | null> {
     const user = auth.currentUser;
-    if (!user || pending || nameBlocked) return;
+    if (!user) return null;
     const result = cleanDetails(draft, t);
     if (result.errors) {
       const first = STEPS.findIndex((item) => item !== "logo" && result.errors?.[item]);
       if (first >= 0) setStep(first);
       setErrors(result.errors);
-      return;
+      return null;
     }
+    const token = await user.getIdToken();
+    const body: BusinessDetailsBody = { ...result.body, locale, onboarding_step: nextStep };
+    const row = saved
+      ? await apiPatch<Business>(`/businesses/${saved.id}`, token, body)
+      : await apiPost<Business>("/businesses", token, body);
+    setSaved(row);
+    onChanged(row);
+    return row;
+  }
+
+  async function advance() {
+    if (pending) return;
     setPending(true);
     setError("");
     try {
-      const token = await user.getIdToken();
-      let created = await apiPost<Business>("/businesses", token, { ...result.body, locale });
-      if (logoFile) {
-        try {
-          created = await apiUpload<Business>(`/businesses/${created.id}/logo`, token, logoFile);
-        } catch {
-          // The business is already created; they can add the logo from Details.
-        }
-      }
-      onCreated(created);
+      const nextStep = AFTER[current];
+      const row = await persist(nextStep);
+      if (!row) return;
+      if (nextStep === "done") onFinished(row);
+      else go(step + 1);
     } catch (err: unknown) {
       setError(errorMessage(err, t));
+    } finally {
       setPending(false);
     }
   }
 
   function onContinue() {
     if (!validateCurrent()) return;
-    if (last) void submit();
-    else go(step + 1);
+    void advance();
   }
 
   function onSkip() {
     if (!OPTIONAL.has(current)) return;
-    if (last) void submit();
-    else go(step + 1);
+    void advance();
   }
 
-  function pickLogo(file: File | null) {
-    if (logoPreview) URL.revokeObjectURL(logoPreview);
+  async function pickLogo(file: File | null) {
     if (!file) {
-      setLogoFile(null);
-      setLogoPreview("");
+      setLogoPreview(saved ? businessLogo(saved) ?? "" : "");
       setError("");
       return;
     }
@@ -122,9 +161,23 @@ export function OnboardingForm({ onCreated }: { onCreated: (business: Business) 
       setError(t("business.photo_type"));
       return;
     }
+    const user = auth.currentUser;
+    if (!user || !saved) {
+      setLogoPreview(URL.createObjectURL(file));
+      return;
+    }
+    setPending(true);
     setError("");
-    setLogoFile(file);
-    setLogoPreview(URL.createObjectURL(file));
+    try {
+      const row = await apiUpload<Business>(`/businesses/${saved.id}/logo`, await user.getIdToken(), file);
+      setSaved(row);
+      setLogoPreview(businessLogo(row) || URL.createObjectURL(file));
+      onChanged(row);
+    } catch (err: unknown) {
+      setError(errorMessage(err, t));
+    } finally {
+      setPending(false);
+    }
   }
 
   return (
@@ -136,7 +189,7 @@ export function OnboardingForm({ onCreated }: { onCreated: (business: Business) 
 
       <Card className="mt-8">
         {current === "logo" ? (
-          <LogoStep preview={logoPreview} onPick={pickLogo} />
+          <LogoStep preview={logoPreview} onPick={(file) => void pickLogo(file)} />
         ) : (
           <BusinessDetailsFields
             key={current}
@@ -217,7 +270,7 @@ function LogoStep({ preview, onPick }: { preview: string; onPick: (file: File | 
       </p>
       <div className="flex items-center gap-4">
         {preview ? (
-          // Local object URL, not a remote image.
+          // Local object URL or the saved logo.
           // eslint-disable-next-line @next/next/no-img-element
           <img src={preview} alt="" className="h-20 w-20 shrink-0 rounded-2xl object-cover" />
         ) : (
@@ -239,13 +292,7 @@ function LogoStep({ preview, onPick }: { preview: string; onPick: (file: File | 
               }}
             />
           </label>
-          {preview ? (
-            <button type="button" onClick={() => onPick(null)} className="text-start text-xs font-medium text-[#EF4444]">
-              {t("business.remove_logo")}
-            </button>
-          ) : (
-            <p className="text-xs text-muted">{t("business.logo_hint")}</p>
-          )}
+          <p className="text-xs leading-5 text-muted">{t("business.logo_skip_hint")}</p>
         </div>
       </div>
     </div>

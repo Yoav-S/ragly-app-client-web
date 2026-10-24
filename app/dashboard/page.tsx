@@ -283,7 +283,10 @@ function Dashboard() {
     }),
   }));
 
-  const showOnboarding = memberships.length === 0;
+  const ownerMembership = memberships.find((item) => item.role === "owner") ?? null;
+  const onboardingBusiness =
+    ownerMembership && ownerMembership.business.onboarding_step !== "done" ? ownerMembership.business : null;
+  const showOnboarding = memberships.length === 0 || Boolean(onboardingBusiness);
   const isOwner = role === "owner";
   const canManageBranches = isOwner;
   const canInvite = isOwner || role === "branch_owner" || role === "lead";
@@ -327,9 +330,21 @@ function Dashboard() {
       {showOnboarding ? (
         <div className="mt-10">
           <OnboardingForm
-            onCreated={(created) => {
-              setMemberships((current) => [...current, { business: created, role: "owner", location_id: null }]);
-              setSelectedId(created.id);
+            business={onboardingBusiness}
+            onChanged={(next) => {
+              setMemberships((current) => {
+                if (current.some((item) => item.business.id === next.id)) {
+                  return current.map((item) => (item.business.id === next.id ? { ...item, business: next } : item));
+                }
+                return [...current, { business: next, role: "owner", location_id: null }];
+              });
+              setSelectedId(next.id);
+            }}
+            onFinished={(next) => {
+              setMemberships((current) =>
+                current.map((item) => (item.business.id === next.id ? { ...item, business: next } : item)),
+              );
+              setSelectedId(next.id);
               setTab("branches");
             }}
           />

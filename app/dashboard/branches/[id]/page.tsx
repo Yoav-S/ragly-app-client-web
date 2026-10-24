@@ -19,6 +19,7 @@ import { BranchPillView } from "../../../components/status-pill";
 import { ApiError, apiDelete, apiGet, apiPatch, apiPost, apiUpload } from "@/lib/api";
 import {
   BUSINESS_IMAGE_ACCEPT,
+  businessLogo,
   fieldLabelKey,
   isBusinessImage,
   type Branch,
@@ -56,6 +57,8 @@ function BranchEditor() {
   const [saved, setSaved] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [canManage, setCanManage] = useState(false);
+  const [pendingPhoto, setPendingPhoto] = useState<File | null>(null);
+  const [pendingPreview, setPendingPreview] = useState("");
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -147,7 +150,14 @@ function BranchEditor() {
     setError("");
     setSaved(false);
     try {
-      const row = await save(false);
+      let row = await save(false);
+      if (row && pendingPhoto) {
+        row = await uploadPhoto(row, pendingPhoto);
+        setBranch(row);
+        setPendingPhoto(null);
+        if (pendingPreview) URL.revokeObjectURL(pendingPreview);
+        setPendingPreview("");
+      }
       if (row) {
         setSaved(true);
         if (!branch) router.replace(`/dashboard/branches/${row.id}?business=${business?.id}`);
@@ -159,14 +169,32 @@ function BranchEditor() {
     }
   }
 
+  async function uploadPhoto(row: Branch, file: File): Promise<Branch> {
+    const user = auth.currentUser;
+    if (!user || !business) return row;
+    const token = await user.getIdToken();
+    return apiUpload<Branch>(`/businesses/${business.id}/locations/${row.id}/photo`, token, file);
+  }
+
   async function onSend() {
     const user = auth.currentUser;
     if (pending || !user || !business) return;
+    const hasLogo = Boolean(businessLogo(business));
+    const hasPhoto = Boolean(branch?.photo || pendingPhoto);
+    if (!hasLogo && !hasPhoto) {
+      setError(t("branch.photo_required"));
+      return;
+    }
     setPending("send");
     setError("");
     try {
-      const row = await save(true);
+      let row = await save(true);
       if (!row) return;
+      if (pendingPhoto) {
+        row = await uploadPhoto(row, pendingPhoto);
+        setBranch(row);
+        setPendingPhoto(null);
+      }
       await apiPost<Branch>(`/businesses/${business.id}/locations/${row.id}/send`, await user.getIdToken(), {});
       router.replace(`/dashboard?business=${business.id}&sent=1`);
     } catch (err: unknown) {
@@ -177,12 +205,20 @@ function BranchEditor() {
   }
 
   async function onPhoto(file: File | null) {
-    const user = auth.currentUser;
-    if (!user || !business || !branch || pending) return;
+    if (pending) return;
     if (file && !isBusinessImage(file)) {
       setError(t("business.photo_type"));
       return;
     }
+    if (!branch) {
+      if (pendingPreview) URL.revokeObjectURL(pendingPreview);
+      setPendingPhoto(file);
+      setPendingPreview(file ? URL.createObjectURL(file) : "");
+      setError("");
+      return;
+    }
+    const user = auth.currentUser;
+    if (!user || !business) return;
     setPending("photo");
     setError("");
     try {
@@ -273,18 +309,30 @@ function BranchEditor() {
           </Card>
         </fieldset>
 
-        {branch && canManage ? (
+        {canManage ? (
           <Card className="mt-6">
             <h2 className="text-lg font-medium text-foreground">{t("branch.photo_title")}</h2>
-            <p className="mt-1 text-sm text-muted">{t("branch.photo_body")}</p>
+            <p className="mt-1 text-sm text-muted">
+              {businessLogo(business) ? t("branch.photo_body") : t("branch.photo_required_body")}
+            </p>
             {notes?.photo ? <p className="mt-2 rounded-xl bg-[#FEF2F2] px-3 py-2 text-sm text-[#B91C1C]">{notes.photo}</p> : null}
             <div className="mt-4 flex flex-wrap items-center gap-4">
-              {branch.photo ? (
+              {branch?.photo || pendingPreview ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={branch.photo} alt="" className="h-28 w-40 rounded-2xl object-cover" />
+                <img src={branch?.photo || pendingPreview} alt="" className="h-28 w-40 rounded-2xl object-cover" />
+              ) : businessLogo(business) ? (
+                <div>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={businessLogo(business) ?? ""} alt="" className="h-20 w-20 rounded-2xl object-cover" />
+                  <p className="mt-2 text-xs text-muted">{t("branch.photo_uses_logo")}</p>
+                </div>
               ) : null}
               <label className={`${secondaryButton} cursor-pointer`}>
-                {pending === "photo" ? t("business.saving_photos") : branch.photo ? t("branch.change_photo") : t("branch.add_photo")}
+                {pending === "photo"
+                  ? t("business.saving_photos")
+                  : branch?.photo || pendingPreview
+                    ? t("branch.change_photo")
+                    : t("branch.add_photo")}
                 <input
                   type="file"
                   accept={BUSINESS_IMAGE_ACCEPT}
@@ -297,7 +345,7 @@ function BranchEditor() {
                   }}
                 />
               </label>
-              {branch.photo ? (
+              {branch?.photo || pendingPreview ? (
                 <button type="button" disabled={pending !== null} onClick={() => void onPhoto(null)} className="text-sm font-medium text-[#EF4444]">
                   {t("business.remove_photo")}
                 </button>

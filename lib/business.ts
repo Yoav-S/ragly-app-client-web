@@ -68,6 +68,7 @@ export type MemberRole = "owner" | "branch_owner" | "lead" | "worker";
 
 export type BranchStatus = "draft" | "pending_review" | "published" | "rejected";
 export type BusinessStatus = BranchStatus | "suspended";
+export type OnboardingStep = "description" | "logo" | "phones" | "email" | "website" | "instagram" | "done";
 
 export type Service = {
   id: string;
@@ -146,6 +147,7 @@ export type Business = {
   created_at: string | null;
   updated_at: string | null;
   submitted_at: string | null;
+  onboarding_step: OnboardingStep;
   invitations: Invitation[];
   locations: Branch[];
 };
@@ -195,6 +197,7 @@ export type BusinessDetailsBody = {
   website: string | null;
   instagram: string | null;
   locale?: AppLocaleCode | null;
+  onboarding_step?: OnboardingStep | null;
 };
 
 export type ServiceBody = {
