@@ -261,6 +261,7 @@ export type GeoPlace = {
 };
 
 export type BusinessCounts = {
+  total: number;
   pending: number;
   published: number;
   rejected: number;
@@ -270,6 +271,7 @@ export type BusinessCounts = {
 export type BusinessPage = {
   items: Business[];
   has_more: boolean;
+  total: number;
 };
 
 export function detailsBody(business: Business): BusinessDetailsBody {

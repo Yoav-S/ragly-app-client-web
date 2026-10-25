@@ -14,9 +14,13 @@ import { useI18n } from "@/lib/i18n";
 export function VisibilityControl({
   business,
   onChanged,
+  variant = "button",
+  onDone,
 }: {
   business: Business;
   onChanged: (business: Business) => void;
+  variant?: "button" | "menuItem";
+  onDone?: () => void;
 }) {
   const { t } = useI18n();
   const [pending, setPending] = useState(false);
@@ -32,11 +36,40 @@ export function VisibilityControl({
     setError("");
     try {
       onChanged(await apiPatch<Business>(`/businesses/${business.id}/visibility`, await user.getIdToken(), { visible: hidden }));
+      onDone?.();
     } catch (err: unknown) {
       setError(errorMessage(err, t));
     } finally {
       setPending(false);
     }
+  }
+
+  const label = pending ? t("saving") : hidden ? t("dashboard.force_active") : t("dashboard.force_inactive");
+
+  if (variant === "menuItem") {
+    return (
+      <div>
+        <button
+          type="button"
+          role="menuitem"
+          disabled={pending}
+          title={t("dashboard.force_hint")}
+          onClick={() => void toggle()}
+          className={
+            hidden
+              ? "flex w-full items-center px-4 py-2.5 text-start text-sm text-brand hover:bg-[#EEF3F2]"
+              : "flex w-full items-center px-4 py-2.5 text-start text-sm text-[#EF4444] hover:bg-[#FEF2F2]"
+          }
+        >
+          {label}
+        </button>
+        {error ? (
+          <p className="px-4 pb-2 text-xs text-[#EF4444]" role="alert">
+            {error}
+          </p>
+        ) : null}
+      </div>
+    );
   }
 
   return (
@@ -52,7 +85,7 @@ export function VisibilityControl({
             : "inline-flex h-11 items-center justify-center rounded-2xl bg-[#EF4444] px-5 text-sm font-medium text-white hover:bg-[#DC2626] disabled:bg-[#F5A3A3]"
         }
       >
-        {pending ? t("saving") : hidden ? t("dashboard.force_active") : t("dashboard.force_inactive")}
+        {label}
       </button>
       {error ? (
         <p className="mt-2 text-sm text-[#EF4444]" role="alert">
