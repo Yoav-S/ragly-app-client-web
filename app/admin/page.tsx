@@ -123,12 +123,23 @@ function Admin() {
           </nav>
           <div className="flex items-center gap-3">
             {tab === "businesses" && !creating ? (
-              <input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder={t("admin.search")}
-                className="h-10 w-52 rounded-full border border-line bg-background px-4 text-sm text-foreground outline-none focus:border-brand lg:w-72"
-              />
+              <label className="relative block">
+                <span className="sr-only">{t("admin.search")}</span>
+                <svg
+                  aria-hidden
+                  viewBox="0 0 24 24"
+                  className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 fill-none stroke-muted stroke-2"
+                >
+                  <circle cx="11" cy="11" r="6.5" />
+                  <path d="m16 16 4 4" strokeLinecap="round" />
+                </svg>
+                <input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder={t("admin.search")}
+                  className="h-10 w-52 rounded-full border border-line bg-background ps-9 pe-4 text-sm text-foreground outline-none focus:border-brand lg:w-72"
+                />
+              </label>
             ) : null}
             <LanguageSwitcher />
             <button
@@ -149,11 +160,8 @@ function Admin() {
       <div className="mx-auto w-full max-w-[1440px] px-6 py-8 lg:px-10">
         {tab === "businesses" ? (
           <>
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div>
-                <h1 className="text-[32px] font-medium leading-none text-foreground">{t("admin.tab_businesses")}</h1>
-                <p className="mt-3 text-sm text-muted">{t("admin.businesses_hint")}</p>
-              </div>
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <h1 className="text-[32px] font-medium leading-none text-foreground">{t("admin.tab_businesses")}</h1>
               <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
@@ -172,7 +180,7 @@ function Admin() {
               </div>
             </div>
 
-            <div className="mt-8 grid gap-3 sm:grid-cols-3">
+            <div className="mt-7 grid gap-3 sm:grid-cols-3">
               <Stat
                 label={t("admin.stat_total")}
                 value={counts.total}
@@ -246,12 +254,12 @@ function Stat({
       onClick={onClick}
       className={
         active
-          ? "rounded-3xl border border-brand bg-surface px-5 py-5 text-start"
-          : "rounded-3xl border border-line bg-surface px-5 py-5 text-start hover:border-brand"
+          ? "rounded-[24px] border border-brand bg-surface px-6 py-6 text-start"
+          : "rounded-[24px] border border-line bg-surface px-6 py-6 text-start hover:border-brand"
       }
     >
       <p className="text-sm text-muted">{label}</p>
-      <p className="mt-2 text-4xl font-medium text-foreground">{value}</p>
+      <p className="mt-3 text-[40px] font-medium leading-none text-foreground">{value}</p>
     </button>
   );
 }

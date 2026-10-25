@@ -7,15 +7,23 @@ import { auth } from "@/lib/firebase";
 import { errorMessage } from "@/lib/errors";
 import { useI18n } from "@/lib/i18n";
 
-export function LogoBadge({ business, size = "h-14 w-14" }: { business: Pick<Business, "name" | "photo">; size?: string }) {
+export function LogoBadge({
+  business,
+  size = "h-14 w-14",
+  rounded = "rounded-2xl",
+}: {
+  business: Pick<Business, "name" | "photo">;
+  size?: string;
+  rounded?: string;
+}) {
   const logo = businessLogo(business);
   if (logo) {
     // Firebase download URLs are not known to the image optimizer.
     // eslint-disable-next-line @next/next/no-img-element
-    return <img src={logo} alt="" className={`${size} shrink-0 rounded-2xl object-cover`} />;
+    return <img src={logo} alt="" className={`${size} shrink-0 ${rounded} object-cover`} />;
   }
   return (
-    <span className={`flex ${size} shrink-0 items-center justify-center rounded-2xl bg-[#EEF3F2] text-lg font-medium text-brand`}>
+    <span className={`flex ${size} shrink-0 items-center justify-center ${rounded} bg-[#EEF3F2] text-lg font-medium text-brand`}>
       {business.name.trim().slice(0, 1).toUpperCase() || "•"}
     </span>
   );

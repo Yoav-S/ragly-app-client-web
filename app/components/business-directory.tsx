@@ -6,6 +6,7 @@ import { ActionMenu, menuItemClass } from "./action-menu";
 import { branchHref } from "./branch-card";
 import { BranchSummary } from "./business-details";
 import { BusinessEditor } from "./business-editor";
+import { FadeIn } from "./fade-in";
 import { LogoBadge } from "./business-logo";
 import { ConfirmModal } from "./confirm-modal";
 import { dangerButton, inputClass, secondaryButton } from "./form-controls";
@@ -201,100 +202,93 @@ export function BusinessDirectory({
 
   return (
     <div className="mt-6">
-      <div className="mb-4 grid gap-3 sm:grid-cols-3">
-        <Select label={t("business.category")} value={category} onChange={(value) => setCategory(value as BusinessCategory | "all")}>
-          <option value="all">{t("admin.filter_all")}</option>
-          {CATEGORIES.map((item) => (
-            <option key={item} value={item}>
-              {t(`categories.${item}`)}
-            </option>
-          ))}
-        </Select>
-        <Select label={t("admin.status_filter")} value={status} onChange={(value) => onStatusChange(value as StatusFilter)}>
-          <option value="all">{t("admin.filter_all")}</option>
-          <option value="published">{t("admin.published")}</option>
-          <option value="pending_review">{t("admin.pending_review")}</option>
-          <option value="rejected">{t("admin.rejected")}</option>
-          <option value="draft">{t("status.draft")}</option>
-          <option value="suspended">{t("admin.suspended")}</option>
-        </Select>
-        <Select label={t("admin.owner")} value={ownership} onChange={(value) => setOwnership(value as Ownership)}>
-          <option value="all">{t("admin.filter_all")}</option>
-          <option value="owned">{t("admin.owned")}</option>
-          <option value="unowned">{t("admin.not_owned")}</option>
-        </Select>
-      </div>
+      <div className="overflow-hidden rounded-[28px] border border-line bg-surface">
+        <div className="flex flex-wrap items-end justify-between gap-3 px-5 py-4 sm:px-6">
+          <div className="grid min-w-0 flex-1 gap-3 sm:grid-cols-3">
+            <Select label={t("business.category")} value={category} onChange={(value) => setCategory(value as BusinessCategory | "all")}>
+              <option value="all">{t("admin.filter_all")}</option>
+              {CATEGORIES.map((item) => (
+                <option key={item} value={item}>
+                  {t(`categories.${item}`)}
+                </option>
+              ))}
+            </Select>
+            <Select label={t("admin.status_filter")} value={status} onChange={(value) => onStatusChange(value as StatusFilter)}>
+              <option value="all">{t("admin.filter_all")}</option>
+              <option value="published">{t("admin.published")}</option>
+              <option value="pending_review">{t("admin.pending_review")}</option>
+              <option value="rejected">{t("admin.rejected")}</option>
+              <option value="draft">{t("status.draft")}</option>
+              <option value="suspended">{t("admin.suspended")}</option>
+            </Select>
+            <Select label={t("admin.owner")} value={ownership} onChange={(value) => setOwnership(value as Ownership)}>
+              <option value="all">{t("admin.filter_all")}</option>
+              <option value="owned">{t("admin.owned")}</option>
+              <option value="unowned">{t("admin.not_owned")}</option>
+            </Select>
+          </div>
+          <Pager page={page} pages={pageCount} disabled={loading} onPage={setPage} />
+        </div>
 
-      <div className="overflow-hidden rounded-3xl border border-line bg-surface">
         {loading && items.length === 0 ? (
           <p className="px-5 py-12 text-center text-sm text-muted">{t("loading")}</p>
         ) : items.length === 0 ? (
           <p className="px-5 py-12 text-center text-sm text-muted">{t("admin.directory_empty")}</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[44rem] text-left text-sm">
-              <thead>
-                <tr className="border-b border-line text-xs text-muted">
-                  <th className="px-5 py-4 font-medium">{t("admin.column_business")}</th>
-                  <th className="px-5 py-4 font-medium">{t("admin.column_services")}</th>
-                  <th className="px-5 py-4 font-medium">{t("admin.column_status")}</th>
-                  <th className="px-5 py-4 font-medium">{t("admin.column_city")}</th>
-                  <th className="px-5 py-4 font-medium">{t("admin.owner")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((business) => {
+          <div className="overflow-x-auto px-5 pb-5 sm:px-6">
+            <div className="min-w-[44rem]">
+              <div className={`${ROW_GRID} px-4 pb-3 text-xs font-medium text-muted`}>
+                <p>{t("admin.column_business")}</p>
+                <p>{t("admin.column_services")}</p>
+                <p>{t("admin.column_status")}</p>
+                <p>{t("admin.column_city")}</p>
+              </div>
+              <ul key={`${reloadKey}-${page}-${status}-${category}-${ownership}-${query}`} className="grid gap-2">
+                {items.map((business, index) => {
                   const active = business.id === selected?.id;
                   return (
-                    <tr
-                      key={business.id}
-                      onClick={() => open(business.id)}
-                      className={active ? "cursor-pointer bg-[#EEF3F2]" : "cursor-pointer hover:bg-[#F7F8FA]"}
-                    >
-                      <td className="px-5 py-3">
-                        <span className="flex items-center gap-3">
-                          <LogoBadge business={business} size="h-10 w-10" />
-                          <span className="font-medium text-foreground">{business.name}</span>
-                        </span>
-                      </td>
-                      <td className="px-5 py-3 text-muted">
-                        {business.categories.length
-                          ? business.categories.map((item) => t(`categories.${item}`)).join(" · ")
-                          : t("business.no_services_yet")}
-                      </td>
-                      <td className="px-5 py-3">
-                        <BusinessPillView status={business.status} visible={business.visible !== false} />
-                      </td>
-                      <td className="px-5 py-3 text-muted">{business.city || "—"}</td>
-                      <td className="px-5 py-3 text-muted">{business.owned ? business.owner_email || t("admin.owned") : t("admin.not_owned")}</td>
-                    </tr>
+                    <li key={business.id}>
+                      <FadeIn delay={index * 45}>
+                        <button
+                          type="button"
+                          onClick={() => open(business.id)}
+                          className={
+                            active
+                              ? `${ROW_GRID} w-full rounded-2xl border border-brand bg-[#EEF3F2] px-4 py-3 text-start`
+                              : `${ROW_GRID} w-full rounded-2xl border border-line bg-surface px-4 py-3 text-start hover:border-brand/40 hover:bg-[#F7F8FA]`
+                          }
+                        >
+                          <span className="flex min-w-0 items-center gap-3">
+                            <LogoBadge business={business} size="h-11 w-11" rounded="rounded-full" />
+                            <span className="truncate font-medium text-foreground">{business.name}</span>
+                          </span>
+                          <span className="flex min-w-0 flex-wrap items-center gap-1.5">
+                            {business.categories.length ? (
+                              business.categories.map((item) => (
+                                <span
+                                  key={item}
+                                  className="inline-flex h-7 items-center rounded-full bg-[#F3F4F6] px-2.5 text-xs text-muted"
+                                >
+                                  {t(`categories.${item}`)}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-sm text-muted">{t("business.no_services_yet")}</span>
+                            )}
+                          </span>
+                          <span>
+                            <BusinessPillView status={business.status} visible={business.visible !== false} />
+                          </span>
+                          <span className="truncate text-sm text-muted">{business.city || "—"}</span>
+                        </button>
+                      </FadeIn>
+                    </li>
                   );
                 })}
-              </tbody>
-            </table>
-          </div>
-        )}
-        {total > PAGE_SIZE ? (
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-5 py-4">
-            <p className="text-sm text-muted">{t("admin.page_of", { page, pages: pageCount })}</p>
-            <div className="flex flex-wrap gap-1">
-              {pageNumbers(page, pageCount).map((number) => (
-                <button
-                  key={number}
-                  type="button"
-                  onClick={() => setPage(number)}
-                  className={
-                    number === page
-                      ? "inline-flex h-9 min-w-9 items-center justify-center rounded-full bg-[#111827] px-3 text-sm font-medium text-white"
-                      : "inline-flex h-9 min-w-9 items-center justify-center rounded-full px-3 text-sm font-medium text-muted hover:bg-[#EEF3F2]"
-                  }
-                >
-                  {number}
-                </button>
-              ))}
+              </ul>
             </div>
           </div>
-        ) : null}
+        )}
       </div>
 
       {selected ? (
@@ -434,11 +428,77 @@ export function BusinessDirectory({
   );
 }
 
-function pageNumbers(current: number, count: number) {
-  const windowSize = 7;
-  const start = Math.max(1, Math.min(current - 3, count - windowSize + 1));
-  const end = Math.min(count, start + windowSize - 1);
-  return Array.from({ length: end - start + 1 }, (_, index) => start + index);
+const ROW_GRID = "grid grid-cols-[minmax(14rem,1.4fr)_minmax(12rem,1fr)_8.5rem_7rem] items-center gap-4";
+
+function Pager({
+  page,
+  pages,
+  disabled,
+  onPage,
+}: {
+  page: number;
+  pages: number;
+  disabled?: boolean;
+  onPage: (page: number) => void;
+}) {
+  const { t } = useI18n();
+  return (
+    <div className="flex shrink-0 items-center gap-2">
+      <p className="text-sm text-muted" aria-live="polite">
+        {t("admin.page_short", { page, pages })}
+      </p>
+      <IconButton
+        label={t("admin.prev_page")}
+        disabled={disabled || page <= 1}
+        onClick={() => onPage(page - 1)}
+      >
+        <Chevron direction="left" />
+      </IconButton>
+      <IconButton
+        label={t("admin.next_page")}
+        disabled={disabled || page >= pages}
+        onClick={() => onPage(page + 1)}
+      >
+        <Chevron direction="right" />
+      </IconButton>
+    </div>
+  );
+}
+
+function IconButton({
+  label,
+  disabled,
+  onClick,
+  children,
+}: {
+  label: string;
+  disabled?: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      disabled={disabled}
+      onClick={onClick}
+      className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-line bg-surface text-foreground hover:border-brand disabled:cursor-not-allowed disabled:text-muted disabled:hover:border-line"
+    >
+      {children}
+    </button>
+  );
+}
+
+function Chevron({ direction }: { direction: "left" | "right" }) {
+  return (
+    <svg aria-hidden viewBox="0 0 24 24" className="h-4 w-4 fill-none stroke-current stroke-2">
+      {direction === "left" ? (
+        <path d="M14.5 6.5 9 12l5.5 5.5" strokeLinecap="round" strokeLinejoin="round" />
+      ) : (
+        <path d="M9.5 6.5 15 12l-5.5 5.5" strokeLinecap="round" strokeLinejoin="round" />
+      )}
+    </svg>
+  );
 }
 
 function Select({ label, value, onChange, children }: { label: string; value: string; onChange: (value: string) => void; children: ReactNode }) {
@@ -448,7 +508,7 @@ function Select({ label, value, onChange, children }: { label: string; value: st
       <select
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="mt-1 h-11 w-full rounded-2xl border border-line bg-surface px-3 text-sm text-foreground outline-none focus:border-brand"
+        className="mt-1 h-10 w-full rounded-full border border-line bg-background px-3 text-sm text-foreground outline-none focus:border-brand"
       >
         {children}
       </select>
