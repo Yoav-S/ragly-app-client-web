@@ -25,10 +25,12 @@ export function BusinessLogo({
   business,
   onChanged,
   canEdit,
+  scope = "owner",
 }: {
   business: Business;
   onChanged: (business: Business) => void;
   canEdit: boolean;
+  scope?: "admin" | "owner";
 }) {
   const { t } = useI18n();
   const [pending, setPending] = useState(false);
@@ -44,7 +46,8 @@ export function BusinessLogo({
     setPending(true);
     setError("");
     try {
-      onChanged(await apiUpload<Business>(`/businesses/${business.id}/logo`, await user.getIdToken(), file));
+      const path = scope === "admin" ? `/admin/businesses/${business.id}/logo` : `/businesses/${business.id}/logo`;
+      onChanged(await apiUpload<Business>(path, await user.getIdToken(), file));
     } catch (err: unknown) {
       setError(errorMessage(err, t));
     } finally {
@@ -58,7 +61,8 @@ export function BusinessLogo({
     setPending(true);
     setError("");
     try {
-      await apiDelete(`/businesses/${business.id}/logo`, await user.getIdToken());
+      const path = scope === "admin" ? `/admin/businesses/${business.id}/logo` : `/businesses/${business.id}/logo`;
+      await apiDelete(path, await user.getIdToken());
       onChanged({ ...business, photo: null });
     } catch (err: unknown) {
       setError(errorMessage(err, t));

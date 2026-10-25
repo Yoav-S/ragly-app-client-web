@@ -196,6 +196,7 @@
     "location_hint": "Aceste două numere sunt punctul de pe hartă. Stăpânii de animale văd distanța după ele.",
     "fix_title": "Corectează acestea înainte de trimitere",
     "fix_name": "Adaugă numele afacerii.",
+    "fix_logo": "Adaugă un logo înainte de publicare.",
     "fix_phone": "Adaugă un număr de telefon.",
     "fix_phone_format": "Folosește doar cifre, cu + opțional la început. Exemplu: +1 555 010 0199.",
     "fix_city": "Adaugă orașul.",

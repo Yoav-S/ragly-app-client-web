@@ -196,6 +196,7 @@
     "location_hint": "These two numbers are the map point. Pet owners use them to see the distance.",
     "fix_title": "Fix these before sending",
     "fix_name": "Add the business name.",
+    "fix_logo": "Add a logo before publishing.",
     "fix_phone": "Add a phone number.",
     "fix_phone_format": "Use digits only, with an optional + at the start. Example: +1 555 010 0199.",
     "fix_city": "Add the city.",

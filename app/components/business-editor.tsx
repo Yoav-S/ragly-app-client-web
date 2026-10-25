@@ -63,7 +63,7 @@ export function BusinessEditor({
     <div className="grid gap-8">
       <section className="grid gap-3">
         <h3 className="text-sm font-medium text-foreground">{t("business.logo")}</h3>
-        <BusinessLogo business={business} onChanged={onChanged} canEdit />
+        <BusinessLogo business={business} onChanged={onChanged} canEdit scope={scope} />
       </section>
       <section className="grid gap-4">
         <h3 className="text-sm font-medium text-foreground">{t("business.details_title")}</h3>
