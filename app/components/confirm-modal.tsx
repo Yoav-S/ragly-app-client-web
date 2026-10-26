@@ -1,5 +1,7 @@
 "use client";
 
+import type { ReactNode } from "react";
+
 export function ConfirmModal({
   open,
   title,
@@ -8,6 +10,7 @@ export function ConfirmModal({
   cancelLabel,
   pending = false,
   danger = false,
+  children,
   onConfirm,
   onCancel,
 }: {
@@ -18,6 +21,7 @@ export function ConfirmModal({
   cancelLabel: string;
   pending?: boolean;
   danger?: boolean;
+  children?: ReactNode;
   onConfirm: () => void;
   onCancel: () => void;
 }) {
@@ -35,6 +39,7 @@ export function ConfirmModal({
           {title}
         </h2>
         <p className="mt-3 text-sm leading-6 text-muted">{body}</p>
+        {children}
         <div className="mt-6 flex flex-col gap-3 sm:flex-row">
           <button
             type="button"

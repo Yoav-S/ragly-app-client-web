@@ -109,7 +109,7 @@ function BranchEditor() {
     () => (branch && !admin ? branch.services.filter((service) => service.status === "published").map((service) => service.id) : []),
     [branch, admin],
   );
-  const backHref = admin ? "/admin" : "/dashboard";
+  const backHref = admin ? `/admin/businesses/${businessId}` : "/dashboard";
 
   function showError(err: unknown) {
     if (err instanceof ApiError && err.code === "branch_incomplete" && err.fields.length) {
@@ -243,7 +243,7 @@ function BranchEditor() {
     setPending("delete");
     try {
       await apiDelete(`/businesses/${business.id}/locations/${branch.id}`, await user.getIdToken());
-      router.replace(`${backHref}?business=${business.id}`);
+      router.replace(admin ? backHref : `${backHref}?business=${business.id}`);
     } catch (err: unknown) {
       showError(err);
       setPending(null);
@@ -271,7 +271,7 @@ function BranchEditor() {
 
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-5 py-10">
-      <Link href={`${backHref}?business=${business.id}`} className="text-sm font-medium text-brand">
+      <Link href={admin ? backHref : `${backHref}?business=${business.id}`} className="text-sm font-medium text-brand">
         ← {t("branch.back_to_dashboard")}
       </Link>
       <div className="mt-4 flex flex-wrap items-start justify-between gap-3">
