@@ -91,11 +91,11 @@ export function AdminShell({
 
   return (
     <main className="min-h-full bg-[#F7F8FA]">
-      <header className="sticky top-0 z-30 border-b border-line bg-surface">
+      <header className="sticky top-0 z-50 border-b border-line bg-surface">
         <div className="mx-auto flex w-full max-w-[1440px] items-center gap-3 px-4 py-3 sm:px-6 lg:px-10 lg:py-5">
           <button
             type="button"
-            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-line text-foreground md:hidden"
+            className="relative z-50 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-line bg-surface text-foreground md:hidden"
             aria-label={menuOpen ? t("admin.close_menu") : t("admin.menu")}
             aria-expanded={menuOpen}
             onClick={() => setMenuOpen((value) => !value)}
@@ -149,11 +149,10 @@ export function AdminShell({
       </header>
 
       {menuOpen ? (
-        <div className="fixed inset-0 z-40 md:hidden">
+        <div className="fixed inset-x-0 bottom-0 top-16 z-40 md:hidden">
           <button type="button" className="absolute inset-0 bg-black/40" aria-label={t("admin.close_menu")} onClick={() => setMenuOpen(false)} />
           <div className="absolute inset-y-0 start-0 flex w-[min(20rem,86vw)] flex-col bg-surface px-4 py-5 shadow-xl">
-            <p className="px-2 text-lg font-medium text-brand">{t("admin.title")}</p>
-            <nav className="mt-6 grid gap-1">
+            <nav className="grid gap-1">
               {tabs.map((item) => (
                 <button
                   key={item.id}

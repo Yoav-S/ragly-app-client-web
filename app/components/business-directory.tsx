@@ -177,15 +177,15 @@ export function BusinessDirectory({
                     href={`/admin/businesses/${business.id}`}
                     className="block rounded-2xl border border-line bg-surface px-3 py-3 hover:border-brand/40 hover:bg-[#F7F8FA] sm:px-4"
                   >
-                    <div className="flex items-start gap-3 lg:grid lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_8.5rem_7rem] lg:items-center lg:gap-4">
-                      <span className="flex min-w-0 items-center gap-3">
+                    <div className="flex items-center gap-3 lg:grid lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_8.5rem_7rem] lg:gap-4">
+                      <span className="flex min-w-0 flex-1 items-center gap-3">
                         <LogoBadge business={business} size="h-11 w-11" rounded="rounded-full" />
                         <span className="min-w-0">
                           <span className="block truncate font-medium text-foreground">{business.name}</span>
-                          <span className="mt-1 block truncate text-sm text-muted lg:hidden">{business.city || "—"}</span>
+                          <span className="mt-0.5 block truncate text-sm text-muted lg:hidden">{business.city || "—"}</span>
                         </span>
                       </span>
-                      <span className="flex min-w-0 flex-wrap items-center gap-1.5 ps-14 lg:ps-0">
+                      <span className="hidden min-w-0 lg:flex lg:flex-wrap lg:items-center lg:gap-1.5">
                         {business.categories.length ? (
                           business.categories.map((item) => (
                             <span key={item} className="inline-flex h-7 items-center rounded-full bg-[#F3F4F6] px-2.5 text-xs text-muted">
@@ -196,7 +196,7 @@ export function BusinessDirectory({
                           <span className="text-sm text-muted">{t("business.no_services_yet")}</span>
                         )}
                       </span>
-                      <span className="ps-14 lg:ps-0">
+                      <span className="shrink-0 whitespace-nowrap">
                         <BusinessPillView status={business.status} visible={business.visible !== false} />
                       </span>
                       <span className="hidden truncate text-sm text-muted lg:block">{business.city || "—"}</span>
