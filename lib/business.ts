@@ -407,8 +407,16 @@ export function businessImages(business: { photo: string | null; photos?: string
   return photos;
 }
 
-export function businessLogo(business: { photo: string | null }): string | null {
-  return business.photo?.startsWith("https://") ? business.photo : null;
+export function businessLogo(business: {
+  photo: string | null;
+  photos?: string[];
+  locations?: { photo: string | null }[];
+}): string | null {
+  if (business.photo?.startsWith("https://")) return business.photo;
+  const gallery = (business.photos ?? []).find((url) => url.startsWith("https://"));
+  if (gallery) return gallery;
+  const branch = (business.locations ?? []).find((row) => row.photo?.startsWith("https://"));
+  return branch?.photo ?? null;
 }
 
 /** Keys the admin can leave a note on, in the order the review card shows them. */

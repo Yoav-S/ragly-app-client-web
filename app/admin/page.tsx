@@ -1,12 +1,13 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useLayoutEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AdminCreateForm } from "../components/admin-create-form";
 import { AdminShell, useAdminSession, type AdminTab } from "../components/admin-shell";
 import { BusinessDirectory } from "../components/business-directory";
 import { apiGet } from "@/lib/api";
-import type { Business, BusinessCounts } from "@/lib/business";
+import { readAdminDirectoryFilters, writeAdminDirectoryFilters, type StatusFilter } from "@/lib/admin-directory";
+import type { BusinessCounts } from "@/lib/business";
 import { signedInThisTab } from "@/lib/auth";
 import { auth } from "@/lib/firebase";
 import { useI18n } from "@/lib/i18n";
@@ -31,9 +32,10 @@ function Admin() {
   const { t } = useI18n();
   const { ready, error } = useAdminSession();
   const [counts, setCounts] = useState<BusinessCounts>(EMPTY_COUNTS);
-  const [directoryStatus, setDirectoryStatus] = useState<Business["status"] | "all">("all");
+  const [directoryStatus, setDirectoryStatus] = useState<StatusFilter>("all");
   const [directoryVersion, setDirectoryVersion] = useState(0);
   const [query, setQuery] = useState("");
+  const [filtersReady, setFiltersReady] = useState(false);
   const [creating, setCreating] = useState(false);
   const [notice, setNotice] = useState("");
   const requestedTab = search.get("tab");
@@ -44,6 +46,18 @@ function Admin() {
     if (!user) return;
     setCounts(await apiGet<BusinessCounts>("/admin/businesses/summary", await user.getIdToken()));
   }, []);
+
+  useLayoutEffect(() => {
+    const saved = readAdminDirectoryFilters();
+    setDirectoryStatus(saved.status);
+    setQuery(saved.query);
+    setFiltersReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!filtersReady) return;
+    writeAdminDirectoryFilters({ status: directoryStatus, query });
+  }, [filtersReady, directoryStatus, query]);
 
   useEffect(() => {
     if (ready) void refreshCounts();
@@ -136,7 +150,20 @@ function Admin() {
               />
             </section>
           ) : (
-            <BusinessDirectory status={directoryStatus} onStatusChange={setDirectoryStatus} query={query} reloadKey={directoryVersion} />
+            filtersReady ? (
+              <BusinessDirectory
+                status={directoryStatus}
+                onStatusChange={setDirectoryStatus}
+                query={query}
+                reloadKey={directoryVersion}
+                onResetFilters={() => {
+                  setDirectoryStatus("all");
+                  setQuery("");
+                }}
+              />
+            ) : (
+              <p className="mt-6 text-center text-sm text-muted">{t("loading")}</p>
+            )
           )}
         </>
       ) : (

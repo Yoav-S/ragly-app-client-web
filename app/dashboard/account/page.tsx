@@ -8,6 +8,7 @@ import { NameGate } from "../../components/name-gate";
 import { LanguageSwitcher } from "../../components/language-switcher";
 import { apiGet, apiPatch, type UserProfile } from "@/lib/api";
 import { signOutAccount } from "@/lib/auth";
+import type { BusinessSession } from "@/lib/business";
 import { auth } from "@/lib/firebase";
 import { errorMessage } from "@/lib/errors";
 import { cleanPhone } from "@/lib/contact";
@@ -30,6 +31,8 @@ export default function AccountSettingsPage() {
   const [notice, setNotice] = useState("");
   const [pending, setPending] = useState(false);
   const [ready, setReady] = useState(false);
+  const [session, setSession] = useState<BusinessSession | null>(null);
+  const [homeHref, setHomeHref] = useState("/dashboard");
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -38,11 +41,19 @@ export default function AccountSettingsPage() {
         return;
       }
       try {
-        const me = await apiGet<UserProfile>("/users/me", await user.getIdToken());
+        const token = await user.getIdToken();
+        const me = await apiGet<UserProfile>("/users/me", token);
         setProfile(me);
         setName(me.name ?? "");
         setPhone(me.phone ?? "");
         setPhoto(me.photo_url ?? null);
+        try {
+          const mine = await apiGet<BusinessSession>("/businesses/mine", token);
+          setSession(mine);
+          setHomeHref(mine.is_ragly_admin ? "/admin" : "/dashboard");
+        } catch {
+          setSession(null);
+        }
       } catch (err: unknown) {
         setError(errorMessage(err, t));
       } finally {
@@ -103,7 +114,7 @@ export default function AccountSettingsPage() {
 
   return (
     <main className="mx-auto flex w-full max-w-md flex-1 flex-col px-5 py-12">
-      <Link href="/dashboard" className="text-sm font-medium text-brand">
+      <Link href={homeHref} className="text-sm font-medium text-brand">
         {t("back")}
       </Link>
       <h1 className="mt-6 text-3xl font-medium text-foreground">{t("dashboard.account_title")}</h1>
@@ -148,6 +159,26 @@ export default function AccountSettingsPage() {
           <span className="mt-2 block">{t("business.phone_hint")}</span>
         </label>
         <p className="text-sm text-muted">{profile?.email}</p>
+        {session ? (
+          <div className="rounded-2xl border border-line bg-surface px-4 py-4">
+            <p className="text-xs text-muted">{t("dashboard.account_kind")}</p>
+            <p className="mt-1 text-sm font-medium text-foreground">
+              {session.is_ragly_admin ? t("dashboard.kind_admin") : t("dashboard.kind_user")}
+            </p>
+            {session.businesses.length ? (
+              <ul className="mt-3 grid gap-1">
+                {session.businesses.map((item) => (
+                  <li key={item.business.id} className="text-sm text-muted">
+                    {t("dashboard.account_role_at", {
+                      role: t(`admin.role_${item.role}`),
+                      name: item.business.name,
+                    })}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+        ) : null}
         <div className="flex items-center justify-between gap-3">
           <span className="text-sm text-muted">{t("language")}</span>
           <LanguageSwitcher />

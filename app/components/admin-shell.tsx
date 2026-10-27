@@ -3,10 +3,11 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { onAuthStateChanged } from "firebase/auth";
+import { AccountMenu } from "./account-menu";
 import { LanguageSwitcher } from "./language-switcher";
 import { apiGet } from "@/lib/api";
 import type { BusinessSession } from "@/lib/business";
-import { signedInThisTab, signOutAccount } from "@/lib/auth";
+import { signedInThisTab } from "@/lib/auth";
 import { errorMessage } from "@/lib/errors";
 import { auth } from "@/lib/firebase";
 import { useI18n } from "@/lib/i18n";
@@ -59,7 +60,6 @@ export function AdminShell({
   search?: { value: string; onChange: (value: string) => void };
   children: ReactNode;
 }) {
-  const router = useRouter();
   const { t } = useI18n();
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -133,17 +133,7 @@ export function AdminShell({
               </label>
             ) : null}
             <LanguageSwitcher />
-            <button
-              type="button"
-              onClick={async () => {
-                await signOutAccount();
-                router.replace("/");
-              }}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#EEF3F2] text-sm font-medium text-brand"
-              aria-label={t("dashboard.sign_out")}
-            >
-              {(auth.currentUser?.email?.[0] || "A").toUpperCase()}
-            </button>
+            <AccountMenu />
           </div>
         </div>
       </header>

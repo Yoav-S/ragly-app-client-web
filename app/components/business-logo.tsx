@@ -12,7 +12,7 @@ export function LogoBadge({
   size = "h-14 w-14",
   rounded = "rounded-2xl",
 }: {
-  business: Pick<Business, "name" | "photo">;
+  business: Pick<Business, "name" | "photo"> & Partial<Pick<Business, "photos" | "locations">>;
   size?: string;
   rounded?: string;
 }) {

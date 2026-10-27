@@ -1,17 +1,21 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import Link from "next/link";
 import { LogoBadge } from "./business-logo";
 import { BusinessPillView } from "./status-pill";
 import { apiGet } from "@/lib/api";
+import {
+  clearAdminDirectoryFilters,
+  readAdminDirectoryFilters,
+  writeAdminDirectoryFilters,
+  type OwnershipFilter,
+  type StatusFilter,
+} from "@/lib/admin-directory";
 import { auth } from "@/lib/firebase";
 import { errorMessage } from "@/lib/errors";
 import { CATEGORIES, type Business, type BusinessCategory, type BusinessPage } from "@/lib/business";
 import { useI18n } from "@/lib/i18n";
-
-type Ownership = "all" | "owned" | "unowned";
-type StatusFilter = Business["status"] | "all";
 
 const PAGE_SIZE = 10;
 
@@ -24,16 +28,19 @@ export function BusinessDirectory({
   onStatusChange,
   query,
   reloadKey,
+  onResetFilters,
 }: {
   status: StatusFilter;
   onStatusChange: (status: StatusFilter) => void;
   query: string;
   reloadKey: number;
+  onResetFilters: () => void;
 }) {
   const { t } = useI18n();
   const [category, setCategory] = useState<BusinessCategory | "all">("all");
-  const [ownership, setOwnership] = useState<Ownership>("all");
+  const [ownership, setOwnership] = useState<OwnershipFilter>("all");
   const [page, setPage] = useState(1);
+  const [filtersReady, setFiltersReady] = useState(false);
   const [items, setItems] = useState<Business[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -42,6 +49,7 @@ export function BusinessDirectory({
   const requestRef = useRef(0);
   const animateClearRef = useRef(0);
   const reloadRef = useRef(reloadKey);
+  const skipPageReset = useRef(true);
 
   function cacheKey(nextPage: number) {
     return JSON.stringify({ status, category, ownership, q: query.trim(), page: nextPage, reloadKey });
@@ -93,9 +101,27 @@ export function BusinessDirectory({
     }
   }
 
+  useLayoutEffect(() => {
+    const saved = readAdminDirectoryFilters();
+    setCategory(saved.category);
+    setOwnership(saved.ownership);
+    setPage(saved.page);
+    setFiltersReady(true);
+  }, []);
+
   useEffect(() => {
+    if (!filtersReady) return;
+    writeAdminDirectoryFilters({ status, category, ownership, query, page });
+  }, [filtersReady, status, category, ownership, query, page]);
+
+  useEffect(() => {
+    if (!filtersReady) return;
+    if (skipPageReset.current) {
+      skipPageReset.current = false;
+      return;
+    }
     setPage(1);
-  }, [status, category, ownership, query]);
+  }, [filtersReady, status, category, ownership, query]);
 
   useEffect(() => {
     if (reloadRef.current === reloadKey) return;
@@ -108,13 +134,23 @@ export function BusinessDirectory({
   }, []);
 
   useEffect(() => {
+    if (!filtersReady) return;
     const handle = window.setTimeout(() => {
       void loadPage(page);
     }, query.trim() ? 250 : 0);
     return () => window.clearTimeout(handle);
     // loadPage closes over the filters that this effect lists.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, category, ownership, query, page, reloadKey]);
+  }, [filtersReady, status, category, ownership, query, page, reloadKey]);
+
+  function resetFilters() {
+    skipPageReset.current = true;
+    clearAdminDirectoryFilters();
+    setCategory("all");
+    setOwnership("all");
+    setPage(1);
+    onResetFilters();
+  }
 
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
@@ -139,13 +175,22 @@ export function BusinessDirectory({
               <option value="draft">{t("status.draft")}</option>
               <option value="suspended">{t("admin.suspended")}</option>
             </Select>
-            <Select label={t("admin.owner")} value={ownership} onChange={(value) => setOwnership(value as Ownership)}>
+            <Select label={t("admin.owner")} value={ownership} onChange={(value) => setOwnership(value as OwnershipFilter)}>
               <option value="all">{t("admin.filter_all")}</option>
               <option value="owned">{t("admin.owned")}</option>
               <option value="unowned">{t("admin.not_owned")}</option>
             </Select>
           </div>
-          <Pager page={page} pages={pageCount} disabled={loading} onPage={setPage} />
+          <div className="flex shrink-0 flex-wrap items-end justify-end gap-2">
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="inline-flex h-10 items-center rounded-full border border-line bg-surface px-4 text-sm font-medium text-foreground hover:border-brand"
+            >
+              {t("admin.reset_filters")}
+            </button>
+            <Pager page={page} pages={pageCount} disabled={loading} onPage={setPage} />
+          </div>
         </div>
 
         {error ? (
