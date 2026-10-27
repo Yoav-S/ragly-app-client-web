@@ -70,7 +70,6 @@ export function BusinessDirectory({
       return;
     }
     const requestId = ++requestRef.current;
-    setItems([]);
     setAnimate(false);
     setLoading(true);
     try {
@@ -211,7 +210,7 @@ export function BusinessDirectory({
               <p>{t("admin.column_status")}</p>
               <p>{t("admin.column_city")}</p>
             </div>
-            <ul className="grid gap-2">
+            <ul className={loading ? "grid gap-2 pointer-events-none opacity-50" : "grid gap-2"}>
               {items.map((business, index) => (
                 <li
                   key={business.id}

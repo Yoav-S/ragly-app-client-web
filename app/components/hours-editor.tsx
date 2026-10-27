@@ -70,17 +70,21 @@ export function HoursSummary({ hours }: { hours: OpeningHours }) {
   if (!hours.provided) return <span className="text-muted">{t("business.hours_unlisted")}</span>;
   if (hours.always_open) return <span>{t("business.always_open")}</span>;
   return (
-    <ul className="grid gap-1">
+    <ul className="grid w-fit max-w-full grid-cols-[auto_auto] items-baseline gap-x-8 gap-y-1">
       {DAYS.map((day) => (
-        <li key={day} className="flex justify-between gap-4">
+        <li key={day} className="contents">
           <span className="text-muted">{t(`business.${day}`)}</span>
-          <span>{hours[day].length ? hours[day].map((slot) => `${slot.open}–${slot.close}`).join(", ") : t("business.closed")}</span>
+          <span className="tabular-nums">
+            {hours[day].length ? hours[day].map((slot) => `${slot.open}–${slot.close}`).join(", ") : t("business.closed")}
+          </span>
         </li>
       ))}
       {(hours.special_dates ?? []).map((item) => (
-        <li key={item.date} className="flex justify-between gap-4">
+        <li key={item.date} className="contents">
           <span className="text-muted">{item.date}</span>
-          <span>{item.closed ? t("business.closed") : item.slots.map((slot) => `${slot.open}–${slot.close}`).join(", ")}</span>
+          <span className="tabular-nums">
+            {item.closed ? t("business.closed") : item.slots.map((slot) => `${slot.open}–${slot.close}`).join(", ")}
+          </span>
         </li>
       ))}
     </ul>

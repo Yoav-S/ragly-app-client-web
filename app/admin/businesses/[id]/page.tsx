@@ -325,11 +325,9 @@ export default function AdminBusinessPage() {
               </Fact>
             </div>
           ) : null}
-          <div className="sm:col-span-2">
-            <Fact label={t("business.hours")}>
-              <HoursSummary hours={business.opening_hours} />
-            </Fact>
-          </div>
+          <Fact label={t("business.hours")}>
+            <HoursSummary hours={business.opening_hours} />
+          </Fact>
         </dl>
         {Object.keys(business.field_errors).length ? (
           <NoteList title={t("dashboard.fix_these")} items={business.field_errors} danger />
