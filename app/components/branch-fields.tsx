@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { BranchMapClient } from "./branch-map-loader";
 import type { MapPoint } from "./branch-map";
 import { Field, PhoneList, inputClass, secondaryButton } from "./form-controls";
@@ -223,27 +223,51 @@ export function BranchFields({
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<GeoPlace[]>([]);
   const [searching, setSearching] = useState(false);
+  const [lookedUp, setLookedUp] = useState("");
   const [geoDown, setGeoDown] = useState(false);
   const searchRef = useRef(0);
+  const draftRef = useRef(draft);
+  const pickedAddress = useRef("");
+  const skipInitialAddress = useRef(Boolean(draft.point));
+  draftRef.current = draft;
 
-  async function searchAddress() {
-    const text = query.trim();
-    if (text.length < 3 || searching) return;
+  function applyPlace(place: GeoPlace, fillAddress: boolean) {
+    const address = place.address || place.label;
+    if (fillAddress) pickedAddress.current = address;
+    const current = draftRef.current;
+    onChange({
+      ...current,
+      address: fillAddress ? address : current.address,
+      city: place.city || current.city,
+      point: { lat: place.latitude, lng: place.longitude },
+      place_ref: place.place_ref,
+      timezone: place.timezone ?? current.timezone,
+    });
+  }
+
+  async function searchAddress(text: string, preview: "search" | "address" | "none") {
+    const q = text.trim();
+    if (q.length < 3) {
+      setResults([]);
+      return;
+    }
     const user = auth.currentUser;
     if (!user) return;
     const id = ++searchRef.current;
     setSearching(true);
     try {
-      const params = new URLSearchParams({ q: text, locale });
-      if (draft.point) {
-        params.set("latitude", String(draft.point.lat));
-        params.set("longitude", String(draft.point.lng));
+      const params = new URLSearchParams({ q, locale });
+      const pin = draftRef.current.point;
+      if (pin) {
+        params.set("latitude", String(pin.lat));
+        params.set("longitude", String(pin.lng));
       }
       const out = await apiGet<{ items: GeoPlace[] }>(`/geo/search?${params}`, await user.getIdToken());
-      if (id === searchRef.current) {
-        setResults(out.items);
-        setGeoDown(false);
-      }
+      if (id !== searchRef.current) return;
+      setResults(out.items);
+      setLookedUp(q);
+      setGeoDown(false);
+      if (preview !== "none" && out.items[0]) applyPlace(out.items[0], preview === "search");
     } catch {
       if (id === searchRef.current) setGeoDown(true);
     } finally {
@@ -251,18 +275,37 @@ export function BranchFields({
     }
   }
 
-  function pickPlace(place: GeoPlace) {
-    onChange({
-      ...draft,
-      address: place.address || place.label,
-      city: place.city,
-      point: { lat: place.latitude, lng: place.longitude },
-      place_ref: place.place_ref,
-      timezone: place.timezone ?? draft.timezone,
-    });
-    setQuery("");
-    setResults([]);
-  }
+  useEffect(() => {
+    if (lockPlace) return;
+    const text = query.trim();
+    if (text.length < 3) {
+      setResults([]);
+      return;
+    }
+    const handle = window.setTimeout(() => {
+      void searchAddress(text, "search");
+    }, 400);
+    return () => window.clearTimeout(handle);
+    // searchAddress reads live refs; query/locale/lockPlace are the triggers.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, locale, lockPlace]);
+
+  useEffect(() => {
+    if (lockPlace) return;
+    const text = draft.address.trim();
+    if (text.length < 3) return;
+    if (pickedAddress.current === text) return;
+    if (skipInitialAddress.current) {
+      skipInitialAddress.current = false;
+      pickedAddress.current = text;
+      return;
+    }
+    const handle = window.setTimeout(() => {
+      void searchAddress(text, "address");
+    }, 500);
+    return () => window.clearTimeout(handle);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft.address, locale, lockPlace]);
 
   async function movePin(point: MapPoint) {
     const next: BranchDraft = { ...draft, point, place_ref: null };
@@ -347,24 +390,31 @@ export function BranchFields({
                   onKeyDown={(event) => {
                     if (event.key === "Enter") {
                       event.preventDefault();
-                      void searchAddress();
+                      void searchAddress(query, "search");
                     }
                   }}
                   autoComplete="off"
                 />
-                <button type="button" onClick={() => void searchAddress()} className={secondaryButton} disabled={searching}>
+                <button type="button" onClick={() => void searchAddress(query, "search")} className={secondaryButton} disabled={searching}>
                   {searching ? t("branch.searching") : t("branch.search")}
                 </button>
               </div>
             </Field>
-            {results.length > 0 || searching ? (
+            {query.trim().length >= 3 && (results.length > 0 || searching || (lookedUp === query.trim() && !geoDown)) ? (
               <ul className="absolute z-30 mt-2 w-full overflow-hidden rounded-2xl border border-line bg-surface shadow-lg">
                 {searching && !results.length ? <li className="px-4 py-3 text-sm text-muted">{t("branch.searching")}</li> : null}
+                {!searching && !results.length && lookedUp === query.trim() ? (
+                  <li className="px-4 py-3 text-sm text-muted">{t("branch.search_empty")}</li>
+                ) : null}
                 {results.map((place, index) => (
                   <li key={`${place.latitude},${place.longitude},${index}`}>
                     <button
                       type="button"
-                      onClick={() => pickPlace(place)}
+                      onClick={() => {
+                        applyPlace(place, true);
+                        setQuery("");
+                        setResults([]);
+                      }}
                       className="block w-full px-4 py-3 text-start text-sm text-foreground hover:bg-background"
                     >
                       <span className="block font-medium">{place.address || place.label}</span>

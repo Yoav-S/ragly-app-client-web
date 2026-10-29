@@ -268,10 +268,17 @@ export type BusinessCounts = {
   deleted: number;
 };
 
+export type DirectoryFacets = {
+  status: Record<string, number>;
+  category: Record<string, number>;
+  ownership: Record<string, number>;
+};
+
 export type BusinessPage = {
   items: Business[];
   has_more: boolean;
   total: number;
+  facets?: DirectoryFacets;
 };
 
 export function detailsBody(business: Business): BusinessDetailsBody {

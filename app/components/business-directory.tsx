@@ -14,12 +14,18 @@ import {
 } from "@/lib/admin-directory";
 import { auth } from "@/lib/firebase";
 import { errorMessage } from "@/lib/errors";
-import { CATEGORIES, type Business, type BusinessCategory, type BusinessPage } from "@/lib/business";
+import { CATEGORIES, type Business, type BusinessCategory, type BusinessPage, type DirectoryFacets } from "@/lib/business";
 import { useI18n } from "@/lib/i18n";
 
 const PAGE_SIZE = 10;
 
-type CachedPage = { items: Business[]; total: number };
+type CachedPage = { items: Business[]; total: number; facets: DirectoryFacets };
+
+const EMPTY_FACETS: DirectoryFacets = { status: {}, category: {}, ownership: {} };
+
+function withCount(label: string, n: number | undefined) {
+  return `${label} (${n ?? 0})`;
+}
 
 const directoryCache = new Map<string, CachedPage>();
 
@@ -43,6 +49,7 @@ export function BusinessDirectory({
   const [filtersReady, setFiltersReady] = useState(false);
   const [items, setItems] = useState<Business[]>([]);
   const [total, setTotal] = useState(0);
+  const [facets, setFacets] = useState<DirectoryFacets>(EMPTY_FACETS);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [animate, setAnimate] = useState(false);
@@ -64,6 +71,7 @@ export function BusinessDirectory({
     if (hit) {
       setItems(hit.items);
       setTotal(hit.total);
+      setFacets(hit.facets);
       setLoading(false);
       setAnimate(false);
       setError("");
@@ -85,9 +93,11 @@ export function BusinessDirectory({
       if (query.trim()) params.set("q", query.trim());
       const body = await apiGet<BusinessPage>(`/admin/businesses/page?${params}`, token);
       if (requestId !== requestRef.current) return;
-      directoryCache.set(key, { items: body.items, total: body.total });
+      const nextFacets = body.facets ?? EMPTY_FACETS;
+      directoryCache.set(key, { items: body.items, total: body.total, facets: nextFacets });
       setItems(body.items);
       setTotal(body.total);
+      setFacets(nextFacets);
       setAnimate(true);
       setError("");
       animateClearRef.current = window.setTimeout(() => {
@@ -159,25 +169,25 @@ export function BusinessDirectory({
         <div className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between sm:px-6">
           <div className="grid min-w-0 flex-1 gap-3 sm:grid-cols-3">
             <Select label={t("business.category")} value={category} onChange={(value) => setCategory(value as BusinessCategory | "all")}>
-              <option value="all">{t("admin.filter_all")}</option>
+              <option value="all">{withCount(t("admin.filter_all"), facets.category.all)}</option>
               {CATEGORIES.map((item) => (
                 <option key={item} value={item}>
-                  {t(`categories.${item}`)}
+                  {withCount(t(`categories.${item}`), facets.category[item])}
                 </option>
               ))}
             </Select>
             <Select label={t("admin.status_filter")} value={status} onChange={(value) => onStatusChange(value as StatusFilter)}>
-              <option value="all">{t("admin.filter_all")}</option>
-              <option value="published">{t("admin.published")}</option>
-              <option value="pending_review">{t("admin.pending_review")}</option>
-              <option value="rejected">{t("admin.rejected")}</option>
-              <option value="draft">{t("status.draft")}</option>
-              <option value="suspended">{t("admin.suspended")}</option>
+              <option value="all">{withCount(t("admin.filter_all"), facets.status.all)}</option>
+              <option value="published">{withCount(t("admin.published"), facets.status.published)}</option>
+              <option value="pending_review">{withCount(t("admin.pending_review"), facets.status.pending_review)}</option>
+              <option value="rejected">{withCount(t("admin.rejected"), facets.status.rejected)}</option>
+              <option value="draft">{withCount(t("status.draft"), facets.status.draft)}</option>
+              <option value="suspended">{withCount(t("admin.suspended"), facets.status.suspended)}</option>
             </Select>
             <Select label={t("admin.owner")} value={ownership} onChange={(value) => setOwnership(value as OwnershipFilter)}>
-              <option value="all">{t("admin.filter_all")}</option>
-              <option value="owned">{t("admin.owned")}</option>
-              <option value="unowned">{t("admin.not_owned")}</option>
+              <option value="all">{withCount(t("admin.filter_all"), facets.ownership.all)}</option>
+              <option value="owned">{withCount(t("admin.owned"), facets.ownership.owned)}</option>
+              <option value="unowned">{withCount(t("admin.not_owned"), facets.ownership.unowned)}</option>
             </Select>
           </div>
           <div className="flex shrink-0 flex-wrap items-end justify-end gap-2">

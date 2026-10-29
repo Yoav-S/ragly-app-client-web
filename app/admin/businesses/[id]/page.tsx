@@ -207,38 +207,40 @@ export default function AdminBusinessPage() {
             </p>
           </div>
         </div>
-        <ActionMenu label={t("admin.more_actions")}>
-          {(close) => (
-            <>
-              <VisibilityControl business={business} onChanged={setBusiness} variant="menuItem" onDone={close} />
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  setEditing((value) => !value);
-                  close();
-                }}
-                className={menuItemClass}
-              >
-                {editing ? t("done") : t("dashboard.edit_business")}
-              </button>
-              <Link href={branchHref(business)} role="menuitem" onClick={close} className={menuItemClass}>
-                {t("dashboard.add_branch")}
-              </Link>
-              {business.locations.map((branch) => (
-                <Link key={branch.id} href={branchHref(business, branch)} role="menuitem" onClick={close} className={menuItemClass}>
-                  {t("branch.edit")}
-                  {branch.address ? ` · ${branch.address}` : ""}
-                </Link>
-              ))}
-              {contact ? (
-                <a href={`mailto:${contact}?subject=${encodeURIComponent(business.name)}`} role="menuitem" onClick={close} className={menuItemClass}>
-                  {t("admin.email_owner")}
-                </a>
-              ) : null}
-            </>
-          )}
-        </ActionMenu>
+        <div className="flex flex-wrap items-center gap-2">
+          <Link href={branchHref(business)} className={secondaryButton}>
+            + {t("dashboard.add_branch")}
+          </Link>
+          <ActionMenu label={t("admin.more_actions")}>
+            {(close) => (
+              <>
+                <VisibilityControl business={business} onChanged={setBusiness} variant="menuItem" onDone={close} />
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setEditing((value) => !value);
+                    close();
+                  }}
+                  className={menuItemClass}
+                >
+                  {editing ? t("done") : t("dashboard.edit_business")}
+                </button>
+                {business.locations.map((branch) => (
+                  <Link key={branch.id} href={branchHref(business, branch)} role="menuitem" onClick={close} className={menuItemClass}>
+                    {t("branch.edit")}
+                    {branch.address ? ` · ${branch.address}` : ""}
+                  </Link>
+                ))}
+                {contact ? (
+                  <a href={`mailto:${contact}?subject=${encodeURIComponent(business.name)}`} role="menuitem" onClick={close} className={menuItemClass}>
+                    {t("admin.email_owner")}
+                  </a>
+                ) : null}
+              </>
+            )}
+          </ActionMenu>
+        </div>
       </div>
 
       {error ? (
