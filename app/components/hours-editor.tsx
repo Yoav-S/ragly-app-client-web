@@ -6,30 +6,70 @@ import { DAYS, type OpeningHours, type SpecialDate, type TimeSlot, type Weekday 
 import { useI18n } from "@/lib/i18n";
 
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
+const DAY_MINUTES = 24 * 60;
 
 export function minutesOf(value: string): number | null {
-  if (value === "24:00") return 24 * 60;
+  if (value === "24:00") return DAY_MINUTES;
   if (!TIME.test(value)) return null;
   const [hour, minute] = value.split(":").map(Number);
   return hour * 60 + minute;
 }
 
+export function isOvernight(slot: TimeSlot): boolean {
+  const start = minutesOf(slot.open);
+  const end = minutesOf(slot.close);
+  return start != null && end != null && end < start;
+}
+
 type Translate = (key: string, vars?: Record<string, string | number>) => string;
+
+function sameDaySpan(start: number, end: number): [number, number] {
+  return end > start ? [start, end] : [start, DAY_MINUTES];
+}
+
+function morningTail(start: number, end: number): [number, number] | null {
+  return end < start && end > 0 ? [0, end] : null;
+}
+
+function spansOverlap(first: [number, number], second: [number, number]): boolean {
+  return first[0] < second[1] && second[0] < first[1];
+}
+
+function slotBounds(slot: TimeSlot): { start: number; end: number } | null {
+  const start = minutesOf(slot.open);
+  const end = minutesOf(slot.close);
+  if (start == null || end == null) return null;
+  return { start, end };
+}
 
 function slotsError(slots: TimeSlot[], t: Translate, where: string): string | null {
   const sorted = [...slots].sort((a, b) => a.open.localeCompare(b.open));
+  const spans: [number, number][] = [];
   for (const slot of sorted) {
-    const start = minutesOf(slot.open);
-    const end = minutesOf(slot.close);
-    if (start == null || end == null || start >= 24 * 60) return t("hours.fix_time", { day: where });
-    if (end <= start) return t("hours.fix_order", { day: where });
+    const bounds = slotBounds(slot);
+    if (!bounds || bounds.start >= DAY_MINUTES) return t("hours.fix_time", { day: where });
+    if (bounds.end === bounds.start) return t("hours.fix_order", { day: where });
+    spans.push(sameDaySpan(bounds.start, bounds.end));
   }
-  for (let i = 1; i < sorted.length; i += 1) {
-    const previousEnd = minutesOf(sorted[i - 1].close) ?? 0;
-    const start = minutesOf(sorted[i].open) ?? 0;
-    if (start < previousEnd) return t("hours.fix_overlap", { day: where });
+  for (let i = 1; i < spans.length; i += 1) {
+    if (spansOverlap(spans[i - 1], spans[i])) return t("hours.fix_overlap", { day: where });
   }
   return null;
+}
+
+function spillOverlap(previous: TimeSlot[], current: TimeSlot[]): boolean {
+  const tails = previous
+    .map(slotBounds)
+    .filter((bounds): bounds is { start: number; end: number } => bounds != null)
+    .map((bounds) => morningTail(bounds.start, bounds.end))
+    .filter((tail): tail is [number, number] => tail != null);
+  for (const slot of current) {
+    const bounds = slotBounds(slot);
+    if (!bounds || bounds.end === bounds.start) continue;
+    const span = sameDaySpan(bounds.start, bounds.end);
+    if (tails.some((tail) => spansOverlap(tail, span))) return true;
+  }
+  return false;
 }
 
 /** The first problem in these hours, in the user's words. Null when fine. */
@@ -38,6 +78,11 @@ export function hoursError(hours: OpeningHours, t: Translate): string | null {
   for (const day of DAYS) {
     const problem = slotsError(hours[day], t, t(`business.${day}`));
     if (problem) return problem;
+  }
+  for (let index = 0; index < DAYS.length; index += 1) {
+    const day = DAYS[index];
+    const previous = DAYS[(index + DAYS.length - 1) % DAYS.length];
+    if (spillOverlap(hours[previous], hours[day])) return t("hours.fix_overlap", { day: t(`business.${day}`) });
   }
   const seen = new Set<string>();
   for (const item of hours.special_dates ?? []) {
@@ -48,6 +93,28 @@ export function hoursError(hours: OpeningHours, t: Translate): string | null {
       if (!item.slots.length) return t("hours.fix_date_slots");
       const problem = slotsError(item.slots, t, item.date);
       if (problem) return problem;
+    }
+  }
+  const hoursOn = (iso: string): TimeSlot[] => {
+    const override = (hours.special_dates ?? []).find((row) => row.date === iso);
+    if (override) return override.closed ? [] : override.slots;
+    const weekday = new Date(`${iso}T12:00:00`).getDay();
+    return hours[DAYS[(weekday + 6) % 7]];
+  };
+  for (const item of hours.special_dates ?? []) {
+    const day = new Date(`${item.date}T12:00:00`);
+    if (Number.isNaN(day.getTime())) continue;
+    const shift = (days: number) => {
+      const next = new Date(day);
+      next.setDate(day.getDate() + days);
+      const year = next.getFullYear();
+      const month = String(next.getMonth() + 1).padStart(2, "0");
+      const date = String(next.getDate()).padStart(2, "0");
+      return `${year}-${month}-${date}`;
+    };
+    const current = item.closed ? [] : item.slots;
+    if (spillOverlap(hoursOn(shift(-1)), current) || spillOverlap(current, hoursOn(shift(1)))) {
+      return t("hours.fix_overlap", { day: item.date });
     }
   }
   if (!DAYS.some((day) => hours[day].length)) return t("hours.fix_empty");
@@ -75,7 +142,11 @@ export function HoursSummary({ hours }: { hours: OpeningHours }) {
         <li key={day} className="contents">
           <span className="text-muted">{t(`business.${day}`)}</span>
           <span className="tabular-nums">
-            {hours[day].length ? hours[day].map((slot) => `${slot.open}–${slot.close}`).join(", ") : t("business.closed")}
+            {hours[day].length
+              ? hours[day]
+                  .map((slot) => (isOvernight(slot) ? `${slot.open}–${slot.close} (${t("hours.next_day")})` : `${slot.open}–${slot.close}`))
+                  .join(", ")
+              : t("business.closed")}
           </span>
         </li>
       ))}
@@ -83,7 +154,11 @@ export function HoursSummary({ hours }: { hours: OpeningHours }) {
         <li key={item.date} className="contents">
           <span className="text-muted">{item.date}</span>
           <span className="tabular-nums">
-            {item.closed ? t("business.closed") : item.slots.map((slot) => `${slot.open}–${slot.close}`).join(", ")}
+            {item.closed
+              ? t("business.closed")
+              : item.slots
+                  .map((slot) => (isOvernight(slot) ? `${slot.open}–${slot.close} (${t("hours.next_day")})` : `${slot.open}–${slot.close}`))
+                  .join(", ")}
           </span>
         </li>
       ))}
@@ -290,32 +365,35 @@ function SlotList({ slots, onChange }: { slots: TimeSlot[]; onChange: (slots: Ti
   return (
     <div className="grid gap-2">
       {slots.map((slot, index) => (
-        <div key={index} className="flex items-center gap-2">
-          <input
-            type="time"
-            value={slot.open}
-            onChange={(event) => onChange(slots.map((item, i) => (i === index ? { ...item, open: event.target.value } : item)))}
-            className={`${inputClass} mt-0`}
-          />
-          <span className="text-muted">–</span>
-          <input
-            type="time"
-            value={slot.close === "24:00" ? "23:59" : slot.close}
-            onChange={(event) =>
-              onChange(slots.map((item, i) => (i === index ? { ...item, close: event.target.value === "23:59" ? "24:00" : event.target.value } : item)))
-            }
-            className={`${inputClass} mt-0`}
-          />
-          {slots.length > 1 ? (
-            <button
-              type="button"
-              aria-label={t("hours.remove_break")}
-              onClick={() => onChange(slots.filter((_, i) => i !== index))}
-              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-line text-muted hover:text-[#EF4444]"
-            >
-              ×
-            </button>
-          ) : null}
+        <div key={index} className="grid gap-1">
+          <div className="flex items-center gap-2">
+            <input
+              type="time"
+              value={slot.open}
+              onChange={(event) => onChange(slots.map((item, i) => (i === index ? { ...item, open: event.target.value } : item)))}
+              className={`${inputClass} mt-0`}
+            />
+            <span className="text-muted">–</span>
+            <input
+              type="time"
+              value={slot.close === "24:00" ? "23:59" : slot.close}
+              onChange={(event) =>
+                onChange(slots.map((item, i) => (i === index ? { ...item, close: event.target.value === "23:59" ? "24:00" : event.target.value } : item)))
+              }
+              className={`${inputClass} mt-0`}
+            />
+            {slots.length > 1 ? (
+              <button
+                type="button"
+                aria-label={t("hours.remove_break")}
+                onClick={() => onChange(slots.filter((_, i) => i !== index))}
+                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-line text-muted hover:text-[#EF4444]"
+              >
+                ×
+              </button>
+            ) : null}
+          </div>
+          {isOvernight(slot) ? <p className="text-xs text-muted">{t("hours.closes_next_day")}</p> : null}
         </div>
       ))}
       {slots.length < 3 ? (
