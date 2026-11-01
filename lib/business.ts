@@ -115,6 +115,17 @@ export type Invitation = {
   role: MemberRole;
   status: "pending" | "approved" | "declined";
   location_id?: string | null;
+  location_address?: string | null;
+};
+
+export type TeamMember = {
+  id: string;
+  business_id: string;
+  user_id?: string | null;
+  email?: string | null;
+  role: MemberRole;
+  location_id?: string | null;
+  location_address?: string | null;
 };
 
 export type Business = {
@@ -149,6 +160,7 @@ export type Business = {
   submitted_at: string | null;
   onboarding_step: OnboardingStep;
   invitations: Invitation[];
+  members?: TeamMember[];
   locations: Branch[];
 };
 

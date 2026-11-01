@@ -14,8 +14,9 @@ import { dangerButton, inputClass, secondaryButton, textareaClass } from "../../
 import { HoursSummary } from "../../../components/hours-editor";
 import { BranchPillView, BusinessPillView } from "../../../components/status-pill";
 import { VisibilityControl } from "../../../components/visibility-control";
+import { TeamRoster } from "../../../components/team-roster";
 import { apiDelete, apiGet, apiPost } from "@/lib/api";
-import { businessImages, type Branch, type Business, type BusinessEvent, type Invitation } from "@/lib/business";
+import { businessImages, type Branch, type Business, type BusinessEvent, type Invitation, type TeamMember } from "@/lib/business";
 import { signedInThisTab } from "@/lib/auth";
 import { errorMessage } from "@/lib/errors";
 import { auth } from "@/lib/firebase";
@@ -43,6 +44,12 @@ export default function AdminBusinessPage() {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteNotice, setInviteNotice] = useState("");
   const [inviting, setInviting] = useState(false);
+  const [branchInviteEmail, setBranchInviteEmail] = useState("");
+  const [branchInviteLocation, setBranchInviteLocation] = useState("");
+  const [branchInviteNotice, setBranchInviteNotice] = useState("");
+  const [branchInviting, setBranchInviting] = useState(false);
+  const [fireMember, setFireMember] = useState<TeamMember | null>(null);
+  const [firing, setFiring] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
@@ -112,6 +119,63 @@ export default function AdminBusinessPage() {
       setError(errorMessage(err, t));
     } finally {
       setInviting(false);
+    }
+  }
+
+  async function sendBranchInvite() {
+    if (!business || branchInviting || !branchInviteEmail.trim()) return;
+    const user = auth.currentUser;
+    const locationId = branchInviteLocation || business.locations[0]?.id || "";
+    if (!user || !locationId) return;
+    setBranchInviting(true);
+    setError("");
+    setBranchInviteNotice("");
+    try {
+      const invitation = await apiPost<Invitation>(`/businesses/${business.id}/invitations`, await user.getIdToken(), {
+        email: branchInviteEmail.trim().toLowerCase(),
+        role: "branch_owner",
+        location_id: locationId,
+      });
+      setBusiness({ ...business, invitations: [invitation, ...business.invitations] });
+      setBranchInviteEmail("");
+      setBranchInviteNotice(t("admin.invite_sent_branch"));
+    } catch (err: unknown) {
+      setError(errorMessage(err, t));
+    } finally {
+      setBranchInviting(false);
+    }
+  }
+
+  async function cancelInvite(invitation: Invitation) {
+    if (!business) return;
+    const user = auth.currentUser;
+    if (!user) return;
+    setError("");
+    try {
+      await apiDelete(`/businesses/${business.id}/invitations/${invitation.id}`, await user.getIdToken());
+      setBusiness({ ...business, invitations: business.invitations.filter((item) => item.id !== invitation.id) });
+    } catch (err: unknown) {
+      setError(errorMessage(err, t));
+    }
+  }
+
+  async function removeMember() {
+    if (!business || !fireMember || firing) return;
+    const user = auth.currentUser;
+    if (!user) return;
+    setFiring(true);
+    setError("");
+    try {
+      await apiDelete(`/businesses/${business.id}/members/${fireMember.id}`, await user.getIdToken());
+      setBusiness({
+        ...business,
+        members: (business.members ?? []).filter((item) => item.id !== fireMember.id),
+      });
+      setFireMember(null);
+    } catch (err: unknown) {
+      setError(errorMessage(err, t));
+    } finally {
+      setFiring(false);
     }
   }
 
@@ -394,6 +458,64 @@ export default function AdminBusinessPage() {
       </section>
 
       <section className="mt-6 rounded-3xl border border-line bg-surface p-5 sm:p-6">
+        <h2 className="text-lg font-medium text-foreground">{t("admin.team")}</h2>
+        <p className="mt-1 text-sm text-muted">{t("admin.team_hint")}</p>
+        <div className="mt-4">
+          <TeamRoster
+            business={business}
+            canManage
+            vacantHint={t("admin.you_manage_branch")}
+            onFire={setFireMember}
+            onCancelInvite={(invitation) => void cancelInvite(invitation)}
+          />
+        </div>
+        {business.locations.length > 0 ? (
+          <form
+            className="mt-6 grid gap-3 border-t border-line pt-5"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void sendBranchInvite();
+            }}
+          >
+            <h3 className="text-sm font-medium text-foreground">{t("admin.invite_branch_owner")}</h3>
+            <p className="text-sm text-muted">{t("admin.invite_branch_owner_body")}</p>
+            <label className="block text-sm text-muted">
+              {t("dashboard.member_email")}
+              <input
+                type="email"
+                required
+                value={branchInviteEmail}
+                onChange={(event) => setBranchInviteEmail(event.target.value)}
+                className={inputClass}
+              />
+            </label>
+            <label className="block text-sm text-muted">
+              {t("dashboard.branch")}
+              <select
+                required
+                value={branchInviteLocation || business.locations[0]?.id || ""}
+                onChange={(event) => setBranchInviteLocation(event.target.value)}
+                className={inputClass}
+              >
+                {business.locations.map((branch) => (
+                  <option key={branch.id} value={branch.id}>
+                    {branch.address}
+                    {branch.city ? ` · ${branch.city}` : ""}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {branchInviteNotice ? <p className="text-sm text-brand">{branchInviteNotice}</p> : null}
+            <div>
+              <button type="submit" disabled={branchInviting} className={secondaryButton}>
+                {t("admin.send_invite")}
+              </button>
+            </div>
+          </form>
+        ) : null}
+      </section>
+
+      <section className="mt-6 rounded-3xl border border-line bg-surface p-5 sm:p-6">
         <h2 className="text-lg font-medium text-foreground">{t("admin.invite_owner")}</h2>
         <form
           className="mt-4 grid gap-3"
@@ -419,7 +541,7 @@ export default function AdminBusinessPage() {
               <li key={invitation.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
                 <span className="text-foreground">
                   {invitation.email} · {t(`admin.role_${invitation.role}`)}
-                  {invitation.location_id ? ` · ${invitation.location_id}` : ""}
+                  {invitation.location_address ? ` · ${invitation.location_address}` : ""}
                 </span>
                 <span className="text-muted">{t(`admin.${invitation.status}`)}</span>
               </li>
@@ -456,6 +578,17 @@ export default function AdminBusinessPage() {
           {t("dashboard.delete")}
         </button>
       </div>
+      <ConfirmModal
+        open={Boolean(fireMember)}
+        title={t("dashboard.fire_title")}
+        body={t("dashboard.fire_body")}
+        confirmLabel={t("dashboard.fire_member")}
+        cancelLabel={t("dashboard.keep")}
+        danger
+        pending={firing}
+        onCancel={() => setFireMember(null)}
+        onConfirm={() => void removeMember()}
+      />
       <ConfirmModal
         open={deleteOpen}
         title={t("dashboard.delete_title")}

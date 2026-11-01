@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { onAuthStateChanged } from "firebase/auth";
@@ -9,11 +9,12 @@ import { BusinessDetails } from "../components/business-details";
 import { BusinessEditor } from "../components/business-editor";
 import { LogoBadge } from "../components/business-logo";
 import { ConfirmModal } from "../components/confirm-modal";
-import { Card, dangerButton, inputClass, primaryButton, secondaryButton } from "../components/form-controls";
+import { Card, dangerButton, primaryButton, secondaryButton } from "../components/form-controls";
 import { NameGate } from "../components/name-gate";
 import { OnboardingForm } from "../components/onboarding-form";
 import { OwnerHeader, type OwnerNotice } from "../components/owner-header";
 import { BusinessPillView } from "../components/status-pill";
+import { TeamRoster } from "../components/team-roster";
 import { VisibilityControl } from "../components/visibility-control";
 import { apiDelete, apiGet, apiPost, type UserProfile } from "@/lib/api";
 import { auth } from "@/lib/firebase";
@@ -26,7 +27,7 @@ import {
   type BusinessMembership,
   type BusinessSession,
   type Invitation,
-  type MemberRole,
+  type TeamMember,
 } from "@/lib/business";
 import { errorMessage } from "@/lib/errors";
 import { useI18n } from "@/lib/i18n";
@@ -41,6 +42,11 @@ type OwnerReview = {
 };
 
 type OwnerTab = "branches" | "details" | "team" | "reviews";
+
+function tabFromSearch(value: string | null): OwnerTab {
+  if (value === "details" || value === "team" || value === "reviews") return value;
+  return "branches";
+}
 
 function roleLabel(role: string): string {
   if (role === "branch_owner") return "admin.role_branch_owner";
@@ -68,15 +74,13 @@ function Dashboard() {
   const [notices, setNotices] = useState<BusinessEvent[]>([]);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState("");
-  const [tab, setTab] = useState<OwnerTab>("branches");
+  const [tab, setTab] = useState<OwnerTab>(() => tabFromSearch(search.get("tab")));
   const [editing, setEditing] = useState(false);
   const [sentBanner, setSentBanner] = useState(search.get("sent") === "1");
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [memberEmail, setMemberEmail] = useState("");
-  const [memberRole, setMemberRole] = useState<MemberRole>("worker");
-  const [inviteLocation, setInviteLocation] = useState("");
-  const [teamNotice, setTeamNotice] = useState("");
+  const [fireMember, setFireMember] = useState<TeamMember | null>(null);
+  const [firing, setFiring] = useState(false);
   const [reviews, setReviews] = useState<OwnerReview[] | null>(null);
 
   const load = useCallback(
@@ -128,9 +132,9 @@ function Dashboard() {
   const role = membership?.role ?? null;
 
   useEffect(() => {
-    setTab("branches");
+    setTab(tabFromSearch(search.get("tab")));
     setEditing(false);
-  }, [selectedId]);
+  }, [selectedId, search]);
 
   useEffect(() => {
     setReviews(null);
@@ -197,24 +201,37 @@ function Dashboard() {
     }
   }
 
-  async function inviteMember(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function cancelInvite(invitation: Invitation) {
     const user = auth.currentUser;
-    if (!user || !business || !memberEmail.trim()) return;
+    if (!user || !business) return;
     setError("");
-    setTeamNotice("");
     try {
-      const token = await user.getIdToken();
-      const invitation = await apiPost<Invitation>(`/businesses/${business.id}/invitations`, token, {
-        email: memberEmail.trim().toLowerCase(),
-        role: memberRole,
-        location_id: memberRole === "owner" ? null : inviteLocation || null,
+      await apiDelete(`/businesses/${business.id}/invitations/${invitation.id}`, await user.getIdToken());
+      replaceBusiness({
+        ...business,
+        invitations: business.invitations.filter((item) => item.id !== invitation.id),
       });
-      replaceBusiness({ ...business, invitations: [invitation, ...business.invitations] });
-      setMemberEmail("");
-      setTeamNotice(t("admin.invite_sent"));
     } catch (err: unknown) {
       setError(errorMessage(err, t));
+    }
+  }
+
+  async function removeMember() {
+    const user = auth.currentUser;
+    if (!user || !business || !fireMember || firing) return;
+    setFiring(true);
+    setError("");
+    try {
+      await apiDelete(`/businesses/${business.id}/members/${fireMember.id}`, await user.getIdToken());
+      replaceBusiness({
+        ...business,
+        members: (business.members ?? []).filter((item) => item.id !== fireMember.id),
+      });
+      setFireMember(null);
+    } catch (err: unknown) {
+      setError(errorMessage(err, t));
+    } finally {
+      setFiring(false);
     }
   }
 
@@ -291,7 +308,8 @@ function Dashboard() {
   const showOnboarding = memberships.length === 0 || Boolean(onboardingBusiness);
   const isOwner = role === "owner";
   const canManageBranches = isOwner;
-  const canInvite = isOwner || role === "branch_owner" || role === "lead";
+  const canManageTeam = isOwner;
+  const canSeeTeam = isOwner || role === "branch_owner";
   const branches = business?.locations ?? [];
   const listedBranches = branches.filter(branchHasProgress);
   const emptyDraft = branches.find((item) => item.status === "draft" && !branchHasProgress(item));
@@ -301,7 +319,7 @@ function Dashboard() {
   const tabs: { id: OwnerTab; label: string; hidden?: boolean }[] = [
     { id: "branches", label: t("dashboard.tab_branches") },
     { id: "details", label: t("dashboard.tab_details") },
-    { id: "team", label: t("dashboard.tab_team"), hidden: !canInvite },
+    { id: "team", label: t("dashboard.tab_team"), hidden: !canSeeTeam },
     { id: "reviews", label: t("dashboard.tab_reviews"), hidden: !showReviews },
   ];
 
@@ -317,7 +335,14 @@ function Dashboard() {
       {invitations.map((invitation) => (
         <Card key={invitation.id} className="mt-6">
           <h2 className="text-lg font-medium text-foreground">{t("dashboard.invite_title", { name: invitation.business_name })}</h2>
-          <p className="mt-2 text-sm text-muted">{t("dashboard.invite_body", { role: t(roleLabel(invitation.role)) })}</p>
+          <p className="mt-2 text-sm text-muted">
+            {invitation.location_address
+              ? t("dashboard.invite_body_branch", {
+                  role: t(roleLabel(invitation.role)),
+                  branch: invitation.location_address,
+                })
+              : t("dashboard.invite_body", { role: t(roleLabel(invitation.role)) })}
+          </p>
           <div className="mt-4 flex flex-col gap-3 sm:flex-row">
             <button type="button" onClick={() => void respond(invitation, "approve")} className={primaryButton}>
               {t("dashboard.approve")}
@@ -526,61 +551,29 @@ function Dashboard() {
             </section>
           ) : null}
 
-          {tab === "team" && canInvite ? (
-            <Card className="mt-6">
-              <form onSubmit={inviteMember} className="grid gap-3">
-                <h2 className="text-lg font-medium text-foreground">{t("dashboard.team")}</h2>
-                <p className="text-sm text-muted">{t("dashboard.team_hint")}</p>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <label className="block text-sm font-medium text-foreground">
-                    {t("admin.invite_email")}
-                    <input type="email" required value={memberEmail} onChange={(event) => setMemberEmail(event.target.value)} className={inputClass} />
-                  </label>
-                  <label className="block text-sm font-medium text-foreground">
-                    {t("dashboard.role")}
-                    <select value={memberRole} onChange={(event) => setMemberRole(event.target.value as MemberRole)} className={inputClass}>
-                      {isOwner ? <option value="owner">{t("admin.role_owner")}</option> : null}
-                      {isOwner ? <option value="branch_owner">{t("admin.role_branch_owner")}</option> : null}
-                      <option value="lead">{t("admin.role_lead")}</option>
-                      <option value="worker">{t("admin.role_worker")}</option>
-                    </select>
-                  </label>
-                </div>
-                {memberRole !== "owner" ? (
-                  <label className="block text-sm font-medium text-foreground">
-                    {t("dashboard.branch")}
-                    <select required value={inviteLocation} onChange={(event) => setInviteLocation(event.target.value)} className={inputClass}>
-                      <option value="">{t("dashboard.pick_branch")}</option>
-                      {listedBranches
-                        .filter((branch) => branch.status === "published")
-                        .map((branch) => (
-                          <option key={branch.id} value={branch.id}>
-                            {branch.address}
-                          </option>
-                        ))}
-                    </select>
-                  </label>
-                ) : null}
-                {teamNotice ? <p className="text-sm text-brand">{teamNotice}</p> : null}
+          {tab === "team" && canSeeTeam ? (
+            <section className="mt-6">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <button type="submit" className={secondaryButton}>
-                    {t("dashboard.add_member")}
-                  </button>
+                  <h2 className="text-lg font-medium text-foreground">{t("dashboard.team")}</h2>
+                  <p className="mt-1 text-sm text-muted">{t("dashboard.team_hint")}</p>
                 </div>
-                {business.invitations.length > 0 ? (
-                  <ul className="mt-2 grid gap-2 border-t border-line pt-4">
-                    {business.invitations.map((invitation) => (
-                      <li key={invitation.id} className="flex items-center justify-between gap-3 text-sm">
-                        <span className="text-foreground">
-                          {invitation.email} · {t(roleLabel(invitation.role))}
-                        </span>
-                        <span className="text-muted">{t(`admin.${invitation.status}`)}</span>
-                      </li>
-                    ))}
-                  </ul>
+                {canManageTeam ? (
+                  <Link href={`/dashboard/team/invite?business=${business.id}`} className={secondaryButton}>
+                    + {t("dashboard.add_member")}
+                  </Link>
                 ) : null}
-              </form>
-            </Card>
+              </div>
+              <div className="mt-4">
+                <TeamRoster
+                  business={business}
+                  canManage={canManageTeam}
+                  vacantHint={t("dashboard.you_manage_branch")}
+                  onFire={canManageTeam ? setFireMember : undefined}
+                  onCancelInvite={canManageTeam ? (invitation) => void cancelInvite(invitation) : undefined}
+                />
+              </div>
+            </section>
           ) : null}
 
           {tab === "reviews" && showReviews ? (
@@ -628,6 +621,17 @@ function Dashboard() {
         pending={deleting}
         onCancel={() => setDeleteOpen(false)}
         onConfirm={() => void removeBusiness()}
+      />
+      <ConfirmModal
+        open={Boolean(fireMember)}
+        title={t("dashboard.fire_title")}
+        body={t("dashboard.fire_body")}
+        confirmLabel={t("dashboard.fire_member")}
+        cancelLabel={t("dashboard.keep")}
+        danger
+        pending={firing}
+        onCancel={() => setFireMember(null)}
+        onConfirm={() => void removeMember()}
       />
     </main>
   );

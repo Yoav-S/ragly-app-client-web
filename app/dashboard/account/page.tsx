@@ -167,14 +167,26 @@ export default function AccountSettingsPage() {
             </p>
             {session.businesses.length ? (
               <ul className="mt-3 grid gap-1">
-                {session.businesses.map((item) => (
-                  <li key={item.business.id} className="text-sm text-muted">
-                    {t("dashboard.account_role_at", {
-                      role: t(`admin.role_${item.role}`),
-                      name: item.business.name,
-                    })}
-                  </li>
-                ))}
+                {session.businesses.map((item) => {
+                  const branch =
+                    item.location_id &&
+                    (item.business.locations.find((row) => row.id === item.location_id)?.address ||
+                      item.business.members?.find((member) => member.location_id === item.location_id)?.location_address);
+                  return (
+                    <li key={item.business.id} className="text-sm text-muted">
+                      {branch
+                        ? t("dashboard.account_role_at_branch", {
+                            role: t(`admin.role_${item.role}`),
+                            name: item.business.name,
+                            branch,
+                          })
+                        : t("dashboard.account_role_at", {
+                            role: t(`admin.role_${item.role}`),
+                            name: item.business.name,
+                          })}
+                    </li>
+                  );
+                })}
               </ul>
             ) : null}
           </div>
