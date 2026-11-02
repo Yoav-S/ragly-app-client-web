@@ -553,22 +553,17 @@ function Dashboard() {
 
           {tab === "team" && canSeeTeam ? (
             <section className="mt-6">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <h2 className="text-lg font-medium text-foreground">{t("dashboard.team")}</h2>
-                  <p className="mt-1 text-sm text-muted">{t("dashboard.team_hint")}</p>
-                </div>
-                {canManageTeam ? (
-                  <Link href={`/dashboard/team/invite?business=${business.id}`} className={secondaryButton}>
-                    + {t("dashboard.add_member")}
-                  </Link>
-                ) : null}
-              </div>
+              <h2 className="text-lg font-medium text-foreground">{t("dashboard.team")}</h2>
               <div className="mt-4">
                 <TeamRoster
                   business={business}
                   canManage={canManageTeam}
-                  vacantHint={t("dashboard.you_manage_branch")}
+                  ownerIsYou={isOwner}
+                  inviteHrefFor={
+                    canManageTeam
+                      ? (locationId) => `/dashboard/team/invite?business=${business.id}&branch=${locationId}`
+                      : undefined
+                  }
                   onFire={canManageTeam ? setFireMember : undefined}
                   onCancelInvite={canManageTeam ? (invitation) => void cancelInvite(invitation) : undefined}
                 />

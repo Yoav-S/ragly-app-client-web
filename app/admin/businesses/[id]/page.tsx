@@ -459,12 +459,10 @@ export default function AdminBusinessPage() {
 
       <section className="mt-6 rounded-3xl border border-line bg-surface p-5 sm:p-6">
         <h2 className="text-lg font-medium text-foreground">{t("admin.team")}</h2>
-        <p className="mt-1 text-sm text-muted">{t("admin.team_hint")}</p>
         <div className="mt-4">
           <TeamRoster
             business={business}
             canManage
-            vacantHint={t("admin.you_manage_branch")}
             onFire={setFireMember}
             onCancelInvite={(invitation) => void cancelInvite(invitation)}
           />
@@ -478,19 +476,8 @@ export default function AdminBusinessPage() {
             }}
           >
             <h3 className="text-sm font-medium text-foreground">{t("admin.invite_branch_owner")}</h3>
-            <p className="text-sm text-muted">{t("admin.invite_branch_owner_body")}</p>
-            <label className="block text-sm text-muted">
-              {t("dashboard.member_email")}
-              <input
-                type="email"
-                required
-                value={branchInviteEmail}
-                onChange={(event) => setBranchInviteEmail(event.target.value)}
-                className={inputClass}
-              />
-            </label>
-            <label className="block text-sm text-muted">
-              {t("dashboard.branch")}
+            <label className="block text-sm font-medium text-foreground">
+              {t("dashboard.invite_to_branch")}
               <select
                 required
                 value={branchInviteLocation || business.locations[0]?.id || ""}
@@ -504,6 +491,16 @@ export default function AdminBusinessPage() {
                   </option>
                 ))}
               </select>
+            </label>
+            <label className="block text-sm font-medium text-foreground">
+              {t("dashboard.invite_their_email")}
+              <input
+                type="email"
+                required
+                value={branchInviteEmail}
+                onChange={(event) => setBranchInviteEmail(event.target.value)}
+                className={inputClass}
+              />
             </label>
             {branchInviteNotice ? <p className="text-sm text-brand">{branchInviteNotice}</p> : null}
             <div>

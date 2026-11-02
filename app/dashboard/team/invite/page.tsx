@@ -24,6 +24,7 @@ function InviteTeamMember() {
   const search = useSearchParams();
   const { t } = useI18n();
   const businessId = search.get("business") ?? "";
+  const requestedBranch = search.get("branch") ?? "";
   const [business, setBusiness] = useState<Business | null>(null);
   const [email, setEmail] = useState("");
   const [locationId, setLocationId] = useState("");
@@ -52,18 +53,20 @@ function InviteTeamMember() {
           router.replace("/dashboard");
           return;
         }
-        setBusiness(membership.business);
-        const firstOpen = membership.business.locations.find((branch) => {
-          const taken = (membership.business.members ?? []).some(
+        const next = membership.business;
+        setBusiness(next);
+        const requested = requestedBranch && next.locations.some((branch) => branch.id === requestedBranch) ? requestedBranch : "";
+        const firstOpen = next.locations.find((branch) => {
+          const taken = (next.members ?? []).some(
             (member) => member.role === "branch_owner" && member.location_id === branch.id,
           );
-          const waiting = membership.business.invitations.some(
+          const waiting = next.invitations.some(
             (invitation) =>
               invitation.status === "pending" && invitation.role === "branch_owner" && invitation.location_id === branch.id,
           );
           return !taken && !waiting;
         });
-        setLocationId(firstOpen?.id ?? membership.business.locations[0]?.id ?? "");
+        setLocationId(requested || firstOpen?.id || next.locations[0]?.id || "");
         setReady(true);
       } catch (err: unknown) {
         setError(errorMessage(err, t));
@@ -71,7 +74,7 @@ function InviteTeamMember() {
       }
     });
     return unsubscribe;
-  }, [businessId, router, t]);
+  }, [businessId, requestedBranch, router, t]);
 
   const selected = useMemo(
     () => business?.locations.find((branch) => branch.id === locationId) ?? null,
@@ -85,6 +88,8 @@ function InviteTeamMember() {
             invitation.status === "pending" && invitation.role === "branch_owner" && invitation.location_id === selected.id,
         )),
   );
+  const ownerEmail =
+    business?.members?.find((item) => item.role === "owner")?.email || business?.owner_email || "—";
   const backHref = `/dashboard?business=${businessId}&tab=team`;
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -129,33 +134,21 @@ function InviteTeamMember() {
         ← {t("dashboard.back_to_team")}
       </Link>
       <h1 className="mt-4 text-2xl font-medium text-foreground">{t("dashboard.add_member_title")}</h1>
-      <p className="mt-2 max-w-xl text-sm leading-6 text-muted">{t("dashboard.add_member_body")}</p>
+      <p className="mt-1 text-sm text-muted">{business.name}</p>
       {business.locations.length === 0 ? (
         <p className="mt-6 text-sm text-muted">{t("dashboard.invite_branch_needed")}</p>
       ) : (
         <Card className="mt-6">
           <form onSubmit={onSubmit} className="grid gap-4">
+            <div>
+              <p className="text-xs text-muted">{t("dashboard.current_owner")}</p>
+              <p className="mt-1 text-sm font-medium text-foreground">
+                {t("dashboard.branch_owner_you")} · {ownerEmail}
+              </p>
+            </div>
             <label className="block text-sm font-medium text-foreground">
-              {t("dashboard.member_email")}
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                className={inputClass}
-              />
-            </label>
-            <label className="block text-sm font-medium text-foreground">
-              {t("dashboard.role")}
-              <select value="branch_owner" disabled className={inputClass}>
-                <option value="branch_owner">{t("admin.role_branch_owner")}</option>
-                <option value="worker">{t("dashboard.role_later")}</option>
-              </select>
-            </label>
-            <label className="block text-sm font-medium text-foreground">
-              {t("dashboard.branch")}
+              {t("dashboard.invite_to_branch")}
               <select required value={locationId} onChange={(event) => setLocationId(event.target.value)} className={inputClass}>
-                <option value="">{t("dashboard.pick_branch")}</option>
                 {business.locations.map((branch) => (
                   <option key={branch.id} value={branch.id}>
                     {branch.address}
@@ -163,6 +156,16 @@ function InviteTeamMember() {
                   </option>
                 ))}
               </select>
+            </label>
+            <label className="block text-sm font-medium text-foreground">
+              {t("dashboard.invite_their_email")}
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                className={inputClass}
+              />
             </label>
             {taken ? <p className="text-sm text-[#B91C1C]">{t("dashboard.invite_branch_taken")}</p> : null}
             {error ? (
