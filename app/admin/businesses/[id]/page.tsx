@@ -463,6 +463,7 @@ export default function AdminBusinessPage() {
           <TeamRoster
             business={business}
             canManage
+            framed={false}
             onFire={setFireMember}
             onCancelInvite={(invitation) => void cancelInvite(invitation)}
           />

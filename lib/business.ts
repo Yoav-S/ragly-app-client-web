@@ -168,6 +168,38 @@ export type BusinessMembership = {
   business: Business;
   role: MemberRole;
   location_id: string | null;
+  location_ids?: string[];
+};
+
+export type AnalyticsTotals = {
+  views: number;
+  unique_visitors: number;
+  calls: number;
+  directions: number;
+};
+
+export type AnalyticsDay = AnalyticsTotals & { date: string };
+export type AnalyticsHour = AnalyticsTotals & { hour: number };
+export type AnalyticsBusyHour = { hour: number; views: number; share: number };
+
+export type BranchAnalytics = {
+  business_id: string;
+  location_id: string;
+  address: string;
+  city: string;
+  timezone: string;
+  days: number;
+  totals: AnalyticsTotals;
+  by_day: AnalyticsDay[];
+  by_hour: AnalyticsHour[];
+  busy_hours: AnalyticsBusyHour[];
+};
+
+export type AnalyticsDirectoryItem = {
+  id: string;
+  name: string;
+  status: string;
+  locations: { id: string; address: string; city: string }[];
 };
 
 export type BusinessEvent = {

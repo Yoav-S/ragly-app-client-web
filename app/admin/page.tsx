@@ -2,6 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useLayoutEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { AdminAnalytics } from "../components/analytics-panel";
 import { AdminCreateForm } from "../components/admin-create-form";
 import { AdminShell, useAdminSession, type AdminTab } from "../components/admin-shell";
 import { BusinessDirectory } from "../components/business-directory";
@@ -166,6 +167,8 @@ function Admin() {
             )
           )}
         </>
+      ) : tab === "analytics" ? (
+        <AdminAnalytics />
       ) : (
         <EmptyTab title={t(`admin.tab_${tab}`)} />
       )}

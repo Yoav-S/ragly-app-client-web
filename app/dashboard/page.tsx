@@ -14,6 +14,7 @@ import { NameGate } from "../components/name-gate";
 import { OnboardingForm } from "../components/onboarding-form";
 import { OwnerHeader, type OwnerNotice } from "../components/owner-header";
 import { BusinessPillView } from "../components/status-pill";
+import { AnalyticsPanel, analyticsBranches } from "../components/analytics-panel";
 import { TeamRoster } from "../components/team-roster";
 import { VisibilityControl } from "../components/visibility-control";
 import { apiDelete, apiGet, apiPost, type UserProfile } from "@/lib/api";
@@ -41,10 +42,10 @@ type OwnerReview = {
   created_at: string;
 };
 
-type OwnerTab = "branches" | "details" | "team" | "reviews";
+type OwnerTab = "branches" | "details" | "team" | "reviews" | "analytics";
 
 function tabFromSearch(value: string | null): OwnerTab {
-  if (value === "details" || value === "team" || value === "reviews") return value;
+  if (value === "details" || value === "team" || value === "reviews" || value === "analytics") return value;
   return "branches";
 }
 
@@ -310,6 +311,7 @@ function Dashboard() {
   const canManageBranches = isOwner;
   const canManageTeam = isOwner;
   const canSeeTeam = isOwner || role === "branch_owner";
+  const canSeeAnalytics = isOwner || role === "branch_owner";
   const branches = business?.locations ?? [];
   const listedBranches = branches.filter(branchHasProgress);
   const emptyDraft = branches.find((item) => item.status === "draft" && !branchHasProgress(item));
@@ -321,6 +323,7 @@ function Dashboard() {
     { id: "details", label: t("dashboard.tab_details") },
     { id: "team", label: t("dashboard.tab_team"), hidden: !canSeeTeam },
     { id: "reviews", label: t("dashboard.tab_reviews"), hidden: !showReviews },
+    { id: "analytics", label: t("dashboard.tab_analytics"), hidden: !canSeeAnalytics },
   ];
 
   return (
@@ -568,6 +571,14 @@ function Dashboard() {
                   onCancelInvite={canManageTeam ? (invitation) => void cancelInvite(invitation) : undefined}
                 />
               </div>
+            </section>
+          ) : null}
+
+          {tab === "analytics" && canSeeAnalytics ? (
+            <section className="mt-6">
+              <h2 className="text-lg font-medium text-foreground">{t("dashboard.tab_analytics")}</h2>
+              <p className="mt-1 text-sm leading-6 text-muted">{t("dashboard.analytics_body")}</p>
+              <AnalyticsPanel businessId={business.id} branches={analyticsBranches(branches)} />
             </section>
           ) : null}
 
