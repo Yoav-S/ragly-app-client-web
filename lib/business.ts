@@ -172,19 +172,32 @@ export type BusinessMembership = {
 };
 
 export type AnalyticsTotals = {
+  impressions: number;
   views: number;
   unique_visitors: number;
   calls: number;
   directions: number;
+  website: number;
+  instagram: number;
 };
 
 export type AnalyticsDay = AnalyticsTotals & { date: string };
 export type AnalyticsHour = AnalyticsTotals & { hour: number };
 export type AnalyticsBusyHour = { hour: number; views: number; share: number };
 
-export type BranchAnalytics = {
-  business_id: string;
-  location_id: string;
+export type AnalyticsSlice = {
+  id: string;
+  name: string;
+  address: string;
+  city: string;
+  totals: AnalyticsTotals;
+};
+
+export type ListingAnalytics = {
+  scope: "branch" | "business" | "platform";
+  business_id: string | null;
+  location_id: string | null;
+  name: string;
   address: string;
   city: string;
   timezone: string;
@@ -193,7 +206,11 @@ export type BranchAnalytics = {
   by_day: AnalyticsDay[];
   by_hour: AnalyticsHour[];
   busy_hours: AnalyticsBusyHour[];
+  branches: AnalyticsSlice[];
+  businesses: AnalyticsSlice[];
 };
+
+export type BranchAnalytics = ListingAnalytics;
 
 export type AnalyticsDirectoryItem = {
   id: string;
