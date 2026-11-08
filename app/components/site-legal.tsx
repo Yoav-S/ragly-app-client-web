@@ -18,6 +18,15 @@ export function SiteLegal({ kind }: { kind: "privacy" | "terms" }) {
         <h1 className="text-3xl font-medium text-foreground">{t(`siteLegal.${kind}_title`)}</h1>
         <p className="mt-3 text-sm text-muted">{t("siteLegal.updated")}</p>
         <p className="mt-6 text-base leading-7 text-muted">{t(`siteLegal.${kind}_intro`)}</p>
+        <p className="mt-4 rounded-2xl bg-background px-4 py-3 text-sm leading-6 text-muted">
+          {t("siteLegal.store_hint")}{" "}
+          <a
+            href={kind === "privacy" ? "/privacy.html" : "/terms.html"}
+            className="font-medium text-brand hover:underline"
+          >
+            {kind === "privacy" ? t("siteLegal.app_privacy") : t("siteLegal.app_terms")}
+          </a>
+        </p>
         {sections.map((section) => (
           <section key={section} className="mt-8">
             <h2 className="text-lg font-medium text-foreground">
