@@ -7,20 +7,9 @@ import { errorMessage } from "@/lib/errors";
 import { useI18n } from "@/lib/i18n";
 
 const SUPPORT = "support@ragly.cloud";
-const INSTAGRAM = "https://www.instagram.com/ragly/";
 
 const fieldClass =
   "h-11 w-full rounded-2xl border border-white/20 bg-white/10 px-4 text-sm text-white outline-none placeholder:text-white/45 focus:border-white";
-
-function InstagramIcon() {
-  return (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden>
-      <rect x="3" y="3" width="18" height="18" rx="5" fill="none" stroke="currentColor" strokeWidth="1.7" />
-      <circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" strokeWidth="1.7" />
-      <circle cx="17.2" cy="6.8" r="1.1" fill="currentColor" />
-    </svg>
-  );
-}
 
 function FooterLeadForm() {
   const { t } = useI18n();
@@ -136,15 +125,6 @@ export function SiteFooter() {
             <p className="text-sm font-semibold text-white">Ragly</p>
           </div>
           <p className="mt-2 max-w-xs text-sm leading-6 text-white/75">{t("footer.tagline")}</p>
-          <a
-            href={INSTAGRAM}
-            target="_blank"
-            rel="noreferrer"
-            className="mt-4 inline-flex text-white hover:text-white/80"
-            aria-label={t("footer.instagram")}
-          >
-            <InstagramIcon />
-          </a>
         </div>
         <div className="relative">
           <FooterLeadForm />
@@ -173,7 +153,7 @@ export function SiteFooter() {
           </ul>
         </div>
       </div>
-      <div className="border-t border-white/15 bg-[#111827]">
+      <div className="border-t border-white/15 bg-brand">
         <div className="mx-auto flex w-full max-w-5xl flex-col gap-3 px-5 py-5 text-xs text-white/70 sm:flex-row sm:items-center sm:justify-between">
           <p>{t("footer.rights")}</p>
           <nav className="flex items-center text-sm text-white/80">
