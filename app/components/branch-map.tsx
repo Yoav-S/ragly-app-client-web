@@ -51,14 +51,14 @@ export default function BranchMap({
   const center = point ?? DEFAULT_CENTER;
   const zoom = point ? 16 : 12;
   return (
-    <div className={`overflow-hidden rounded-2xl border border-line ${className}`}>
+    <div className={`relative z-0 isolate overflow-hidden rounded-2xl border border-line ${className}`}>
       <MapContainer
         center={[center.lat, center.lng]}
         zoom={zoom}
         scrollWheelZoom={editable}
         dragging
-        className="h-full w-full"
-        style={{ minHeight: 280 }}
+        className="relative z-0 h-full w-full"
+        style={{ minHeight: 280, zIndex: 0 }}
       >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'

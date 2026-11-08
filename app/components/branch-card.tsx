@@ -8,6 +8,7 @@ import { HoursSummary } from "./hours-editor";
 import { BranchPillView } from "./status-pill";
 import { ApiError, apiDelete, apiPost } from "@/lib/api";
 import { fieldLabelKey, type Branch, type Business } from "@/lib/business";
+import { formatInstagram } from "@/lib/contact";
 import { auth } from "@/lib/firebase";
 import { errorMessage } from "@/lib/errors";
 import { useI18n } from "@/lib/i18n";
@@ -125,7 +126,7 @@ export function BranchCard({
           ))}
           {branch.phone.length || branch.website || branch.instagram ? (
             <p className="text-xs text-muted sm:col-span-2">
-              {[branch.phone.join(", "), branch.website, branch.instagram].filter(Boolean).join(" · ")}
+              {[branch.phone.join(", "), branch.website, formatInstagram(branch.instagram)].filter(Boolean).join(" · ")}
             </p>
           ) : null}
         </div>

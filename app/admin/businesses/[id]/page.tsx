@@ -10,7 +10,7 @@ import { PhoneLinks } from "../../../components/business-details";
 import { BusinessEditor } from "../../../components/business-editor";
 import { LogoBadge } from "../../../components/business-logo";
 import { ConfirmModal } from "../../../components/confirm-modal";
-import { dangerButton, inputClass, secondaryButton, textareaClass } from "../../../components/form-controls";
+import { dangerButton, inputClass, InstagramHandle, secondaryButton, textareaClass } from "../../../components/form-controls";
 import { HoursSummary } from "../../../components/hours-editor";
 import { BranchPillView, BusinessPillView } from "../../../components/status-pill";
 import { VisibilityControl } from "../../../components/visibility-control";
@@ -354,7 +354,9 @@ export default function AdminBusinessPage() {
               "—"
             )}
           </Fact>
-          <Fact label={t("business.instagram")}>{business.instagram || "—"}</Fact>
+          <Fact label={t("business.instagram")}>
+            {business.instagram ? <InstagramHandle value={business.instagram} /> : "—"}
+          </Fact>
           <Fact label={t("business.city")}>{business.city || "—"}</Fact>
           <Fact label={t("business.address")}>{business.address || "—"}</Fact>
           <Fact label={t("business.timezone")}>{business.timezone}</Fact>
@@ -660,7 +662,9 @@ function BranchRecord({
           <PhoneLinks phones={branch.phone} />
         </Fact>
         <Fact label={t("business.website")}>{branch.website || "—"}</Fact>
-        <Fact label={t("business.instagram")}>{branch.instagram || "—"}</Fact>
+        <Fact label={t("business.instagram")}>
+          {branch.instagram ? <InstagramHandle value={branch.instagram} /> : "—"}
+        </Fact>
         <Fact label={t("admin.created_at")}>{stamp(branch.created_at)}</Fact>
         <Fact label={t("admin.updated_at")}>{stamp(branch.updated_at)}</Fact>
         <Fact label={t("admin.submitted_at")}>{stamp(branch.submitted_at)}</Fact>

@@ -1,6 +1,7 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
+import { cleanInstagram, formatInstagram, instagramProfileUrl, isBlankInstagram } from "@/lib/contact";
 
 export const inputClass =
   "mt-2 h-11 w-full rounded-2xl border border-line bg-background px-4 text-sm text-foreground outline-none transition-colors focus:border-brand disabled:text-muted";
@@ -147,5 +148,74 @@ export function PhoneList({
         + {addLabel}
       </button>
     </div>
+  );
+}
+
+function looksLikeUrl(value: string): boolean {
+  const text = value.trim().toLowerCase();
+  return text.includes("instagram.com/") || /^https?:\/\//.test(text);
+}
+
+/** Optional handle field. Puts @ in front so it is obviously an Instagram name. */
+export function InstagramInput({
+  value,
+  onChange,
+  autoFocus,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  autoFocus?: boolean;
+}) {
+  const primed = useRef(false);
+
+  useEffect(() => {
+    if (primed.current) return;
+    primed.current = true;
+    if (!value.trim()) onChange("@");
+  }, [value, onChange]);
+
+  return (
+    <input
+      className={inputClass}
+      value={value}
+      placeholder="@name"
+      autoComplete="off"
+      autoCorrect="off"
+      autoCapitalize="none"
+      spellCheck={false}
+      autoFocus={autoFocus}
+      onFocus={() => {
+        if (!value.trim()) onChange("@");
+      }}
+      onChange={(event) => {
+        const next = event.target.value;
+        if (!next) {
+          onChange("");
+          return;
+        }
+        if (isBlankInstagram(value) && !next.startsWith("@") && !looksLikeUrl(next)) {
+          onChange(`@${next.replace(/^@+/, "")}`);
+          return;
+        }
+        onChange(next);
+      }}
+      onBlur={() => {
+        if (isBlankInstagram(value)) return;
+        const cleaned = cleanInstagram(value);
+        if (cleaned) onChange(cleaned);
+      }}
+    />
+  );
+}
+
+export function InstagramHandle({ value }: { value: string | null | undefined }) {
+  const label = formatInstagram(value);
+  const href = instagramProfileUrl(value);
+  if (!label) return null;
+  if (!href) return <>{label}</>;
+  return (
+    <a href={href} target="_blank" rel="noreferrer" className="break-all text-brand">
+      {label}
+    </a>
   );
 }

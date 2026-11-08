@@ -3,11 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import { BranchMapClient } from "./branch-map-loader";
 import type { MapPoint } from "./branch-map";
-import { Field, PhoneList, inputClass, secondaryButton } from "./form-controls";
+import { Field, InstagramInput, PhoneList, inputClass, secondaryButton } from "./form-controls";
 import { HoursEditor, hoursError } from "./hours-editor";
 import { apiGet } from "@/lib/api";
 import {
-  CATEGORIES,
   weekdayHours,
   type Branch,
   type BranchBody,
@@ -16,7 +15,7 @@ import {
   type OpeningHours,
   type PlaceRef,
 } from "@/lib/business";
-import { cleanInstagram, cleanPhone, cleanWebsite } from "@/lib/contact";
+import { cleanInstagram, cleanPhone, cleanWebsite, isBlankInstagram } from "@/lib/contact";
 import { auth } from "@/lib/firebase";
 import { useI18n } from "@/lib/i18n";
 
@@ -74,7 +73,7 @@ export function branchDraftHasProgress(draft: BranchDraft): boolean {
       draft.services.length ||
       draft.phones.some((phone) => phone.trim()) ||
       draft.website.trim() ||
-      draft.instagram.trim(),
+      !isBlankInstagram(draft.instagram),
   );
 }
 
@@ -97,6 +96,14 @@ function hoursKey(hours: OpeningHours): string {
   });
 }
 
+const SERVICE_CHIPS: BusinessCategory[] = [
+  "veterinarian",
+  "groomer",
+  "pharmacy",
+  "pet_store",
+  "pet_friendly",
+];
+
 export function emptyBranchDraft(): BranchDraft {
   return {
     address: "",
@@ -110,6 +117,25 @@ export function emptyBranchDraft(): BranchDraft {
     instagram: "",
     detailsMode: "shared",
     sharedHours: weekdayHours(),
+  };
+}
+
+/** A new branch copies services and hours from the first location. Address stays empty. */
+export function newBranchDraft(existing: Branch[] = []): BranchDraft {
+  const source = existing.find((row) => row.is_main) ?? existing[0];
+  if (!source) return emptyBranchDraft();
+  const template = branchDraftFrom(source);
+  return {
+    ...emptyBranchDraft(),
+    services: template.services.map((service) => ({
+      id: null,
+      key: nextKey(),
+      category: service.category,
+      hours: cloneHours(service.hours),
+      phones: [],
+    })),
+    detailsMode: template.detailsMode,
+    sharedHours: cloneHours(template.sharedHours),
   };
 }
 
@@ -176,8 +202,8 @@ export function cleanBranch(
   const website = websiteText ? cleanWebsite(websiteText) : null;
   if (websiteText && !website) errors.website = t("business.fix_website");
   const instagramText = draft.instagram.trim();
-  const instagram = instagramText ? cleanInstagram(instagramText) : null;
-  if (instagramText && !instagram) errors.instagram = t("business.fix_instagram");
+  const instagram = isBlankInstagram(instagramText) ? null : cleanInstagram(instagramText);
+  if (!isBlankInstagram(instagramText) && !instagram) errors.instagram = t("business.fix_instagram");
   if (Object.keys(errors).length > 1 || Object.keys(errors.hours).length) return { body: null, errors };
   return {
     body: {
@@ -202,6 +228,23 @@ export function cleanBranch(
   };
 }
 
+export type BranchSection = "location" | "services" | "contact";
+
+export function stepForBranchErrors(errors: BranchErrors): BranchSection | null {
+  if (errors.location || errors.address) return "location";
+  if (errors.services) return "services";
+  const hourKeys = Object.keys(errors.hours);
+  if (hourKeys.includes("shared")) return "contact";
+  if (hourKeys.length) return "services";
+  if (errors.phones || errors.website || errors.instagram) return "contact";
+  return null;
+}
+
+function samePoint(point: MapPoint | null, place: GeoPlace): boolean {
+  if (!point) return false;
+  return Math.abs(point.lat - place.latitude) < 1e-5 && Math.abs(point.lng - place.longitude) < 1e-5;
+}
+
 export function BranchFields({
   draft,
   onChange,
@@ -209,6 +252,7 @@ export function BranchFields({
   notes,
   lockPlace = false,
   lockedServiceIds = [],
+  show,
 }: {
   draft: BranchDraft;
   onChange: (next: BranchDraft) => void;
@@ -218,6 +262,8 @@ export function BranchFields({
   lockPlace?: boolean;
   /** Services already live: category cannot change, only hours and phones. */
   lockedServiceIds?: string[];
+  /** When set, only these blocks render. Used by the step-by-step branch form. */
+  show?: BranchSection[];
 }) {
   const { t, locale } = useI18n();
   const [query, setQuery] = useState("");
@@ -267,7 +313,7 @@ export function BranchFields({
       setResults(out.items);
       setLookedUp(q);
       setGeoDown(false);
-      if (preview !== "none" && out.items[0]) applyPlace(out.items[0], preview === "search");
+      if (preview !== "none" && out.items[0]) applyPlace(out.items[0], preview === "search" && out.items.length === 1);
     } catch {
       if (id === searchRef.current) setGeoDown(true);
     } finally {
@@ -327,11 +373,14 @@ export function BranchFields({
     }
   }
 
-  function addService() {
-    const used = new Set(draft.services.map((service) => service.category));
-    const category = CATEGORIES.find((item) => !used.has(item));
-    if (!category) return;
-    const previous = draft.services[draft.services.length - 1];
+  function toggleCategory(category: BusinessCategory) {
+    const existing = draft.services.find((service) => service.category === category);
+    if (existing) {
+      if (existing.id && lockedServiceIds.includes(existing.id)) return;
+      onChange({ ...draft, services: draft.services.filter((service) => service.category !== category) });
+      return;
+    }
+    const previous = draft.services[0];
     onChange({
       ...draft,
       services: [
@@ -369,64 +418,79 @@ export function BranchFields({
     onChange({ ...draft, services: draft.services.map((service) => (service.key === key ? { ...service, ...patch } : service)) });
   }
 
-  const usedCategories = new Set(draft.services.map((service) => service.category));
+  const visible = (section: BranchSection) => !show || show.includes(section);
+  const stepped = Boolean(show);
+  const showMatches =
+    !lockPlace &&
+    query.trim().length >= 3 &&
+    (results.length > 0 || searching || (lookedUp === query.trim() && !geoDown));
 
   return (
     <div className="grid gap-8">
+      {visible("location") ? (
       <section className="grid gap-4">
-        <div>
-          <h2 className="text-lg font-medium text-foreground">{t("branch.where_title")}</h2>
-          <p className="mt-1 text-sm leading-6 text-muted">{lockPlace ? t("branch.where_locked") : t("branch.where_body")}</p>
-        </div>
+        {stepped ? (
+          <p className="text-sm leading-6 text-muted">{lockPlace ? t("branch.where_locked") : t("branch.where_body")}</p>
+        ) : (
+          <div>
+            <h2 className="text-lg font-medium text-foreground">{t("branch.where_title")}</h2>
+            <p className="mt-1 text-sm leading-6 text-muted">{lockPlace ? t("branch.where_locked") : t("branch.where_body")}</p>
+          </div>
+        )}
         {!lockPlace ? (
-          <div className="relative">
-            <Field label={t("branch.search")} hint={geoDown ? t("errors.geo_unavailable") : t("branch.search_hint")}>
-              <div className="flex gap-2">
-                <input
-                  className={inputClass}
-                  value={query}
-                  placeholder={t("branch.search_placeholder")}
-                  onChange={(event) => setQuery(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      event.preventDefault();
-                      void searchAddress(query, "search");
-                    }
-                  }}
-                  autoComplete="off"
-                />
-                <button type="button" onClick={() => void searchAddress(query, "search")} className={secondaryButton} disabled={searching}>
-                  {searching ? t("branch.searching") : t("branch.search")}
-                </button>
-              </div>
-            </Field>
-            {query.trim().length >= 3 && (results.length > 0 || searching || (lookedUp === query.trim() && !geoDown)) ? (
-              <ul className="absolute z-30 mt-2 w-full overflow-hidden rounded-2xl border border-line bg-surface shadow-lg">
-                {searching && !results.length ? <li className="px-4 py-3 text-sm text-muted">{t("branch.searching")}</li> : null}
-                {!searching && !results.length && lookedUp === query.trim() ? (
-                  <li className="px-4 py-3 text-sm text-muted">{t("branch.search_empty")}</li>
-                ) : null}
-                {results.map((place, index) => (
-                  <li key={`${place.latitude},${place.longitude},${index}`}>
+          <Field label={t("branch.search")} hint={geoDown ? t("errors.geo_unavailable") : t("branch.search_hint")}>
+            <div className="flex gap-2">
+              <input
+                className={inputClass}
+                value={query}
+                placeholder={t("branch.search_placeholder")}
+                onChange={(event) => setQuery(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    void searchAddress(query, "search");
+                  }
+                }}
+                autoComplete="off"
+              />
+              <button type="button" onClick={() => void searchAddress(query, "search")} className={secondaryButton} disabled={searching}>
+                {searching ? t("branch.searching") : t("branch.search")}
+              </button>
+            </div>
+          </Field>
+        ) : null}
+        <BranchMapClient point={draft.point} onChange={lockPlace ? undefined : movePin} editable={!lockPlace} className="h-[320px]" />
+        {showMatches ? (
+          <div className="rounded-2xl border border-line bg-background">
+            <div className="border-b border-line px-4 py-3">
+              <p className="text-sm font-medium text-foreground">{t("branch.matches_title")}</p>
+              <p className="mt-0.5 text-xs leading-5 text-muted">{t("branch.matches_hint")}</p>
+            </div>
+            <ul className="max-h-64 overflow-y-auto">
+              {searching && !results.length ? <li className="px-4 py-3 text-sm text-muted">{t("branch.searching")}</li> : null}
+              {!searching && !results.length && lookedUp === query.trim() ? (
+                <li className="px-4 py-3 text-sm text-muted">{t("branch.search_empty")}</li>
+              ) : null}
+              {results.map((place, index) => {
+                const selected = samePoint(draft.point, place);
+                return (
+                  <li key={`${place.latitude},${place.longitude},${index}`} className="border-t border-line first:border-t-0">
                     <button
                       type="button"
-                      onClick={() => {
-                        applyPlace(place, true);
-                        setQuery("");
-                        setResults([]);
-                      }}
-                      className="block w-full px-4 py-3 text-start text-sm text-foreground hover:bg-background"
+                      onClick={() => applyPlace(place, true)}
+                      className={`block w-full px-4 py-3 text-start text-sm ${
+                        selected ? "bg-[#EEF3F2] text-foreground" : "text-foreground hover:bg-surface"
+                      }`}
                     >
                       <span className="block font-medium">{place.address || place.label}</span>
                       <span className="mt-0.5 block text-xs text-muted">{place.label}</span>
                     </button>
                   </li>
-                ))}
-              </ul>
-            ) : null}
+                );
+              })}
+            </ul>
           </div>
         ) : null}
-        <BranchMapClient point={draft.point} onChange={lockPlace ? undefined : movePin} editable={!lockPlace} className="h-[320px]" />
         {errors.location ? (
           <p className="text-sm text-[#EF4444]" role="alert">
             {errors.location}
@@ -463,132 +527,67 @@ export function BranchFields({
           </p>
         ) : null}
       </section>
+      ) : null}
 
-      <section className="grid gap-4">
-        <div>
-          <h2 className="text-lg font-medium text-foreground">{t("branch.services_title")}</h2>
-          <p className="mt-1 text-sm leading-6 text-muted">
-            {draft.detailsMode === "separate" ? t("branch.services_body_separate") : t("branch.services_body")}
-          </p>
+      {visible("services") ? (
+      <section className={`flex w-full flex-col items-start gap-4 ${stepped ? "" : "rounded-2xl bg-background p-4 sm:p-5"}`}>
+        <h2 className="text-[24px] font-normal leading-[29px] text-black">{t("branch.services")}</h2>
+        <div
+          role="group"
+          aria-label={t("branch.services")}
+          className="flex w-full max-w-full gap-[11px] overflow-x-auto sm:max-w-[437px] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
+          {SERVICE_CHIPS.map((category) => {
+            const service = draft.services.find((item) => item.category === category);
+            const selected = Boolean(service);
+            const locked = Boolean(service?.id && lockedServiceIds.includes(service.id));
+            return (
+              <button
+                key={category}
+                type="button"
+                aria-pressed={selected}
+                onClick={() => toggleCategory(category)}
+                className={`inline-flex h-[35px] shrink-0 items-center justify-center rounded-xl px-2.5 text-xs leading-[15px] font-normal whitespace-nowrap ${
+                  selected ? "bg-brand text-[#F6F7F9]" : "bg-white text-black"
+                } ${locked ? "cursor-not-allowed" : ""}`}
+              >
+                {t(`categories.${category}`)}
+              </button>
+            );
+          })}
         </div>
-        {notes?.services ? <p className="rounded-xl bg-[#FEF2F2] px-3 py-2 text-sm text-[#B91C1C]">{notes.services}</p> : null}
-        {notes?.hours ? <p className="rounded-xl bg-[#FEF2F2] px-3 py-2 text-sm text-[#B91C1C]">{notes.hours}</p> : null}
-        {draft.services.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-line bg-background px-5 py-8 text-center">
-            <p className="text-sm text-muted">{t("branch.no_services")}</p>
-          </div>
+        {draft.services.some((service) => service.id && lockedServiceIds.includes(service.id)) ? (
+          <p className="text-xs leading-5 text-muted">{t("branch.service_live")}</p>
         ) : null}
-        {draft.services.map((service, index) => {
-          const locked = service.id ? lockedServiceIds.includes(service.id) : false;
-          const note = notes?.[`service:${service.category}`];
-          return (
-            <div key={service.key} className="rounded-2xl border border-line bg-surface p-4 sm:p-5">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <label className="block min-w-48 flex-1">
-                  <span className="text-sm font-medium text-foreground">{t("business.category")}</span>
-                  <select
-                    className={`${inputClass}`}
-                    value={service.category}
-                    disabled={locked}
-                    onChange={(event) => updateService(service.key, { category: event.target.value as BusinessCategory })}
-                  >
-                    {CATEGORIES.map((category) => (
-                      <option key={category} value={category} disabled={usedCategories.has(category) && category !== service.category}>
-                        {t(`categories.${category}`)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                {!locked ? (
-                  <button
-                    type="button"
-                    onClick={() => onChange({ ...draft, services: draft.services.filter((item) => item.key !== service.key) })}
-                    className="mt-6 text-sm font-medium text-[#EF4444]"
-                  >
-                    {t("branch.remove_service")}
-                  </button>
-                ) : (
-                  <span className="mt-6 text-xs text-muted">{t("branch.service_live")}</span>
-                )}
-              </div>
-              {note ? <p className="mt-3 rounded-xl bg-[#FEF2F2] px-3 py-2 text-sm text-[#B91C1C]">{note}</p> : null}
-              {draft.detailsMode === "separate" ? (
-                <>
-                  <div className="mt-4">
-                    <p className="text-sm font-medium text-foreground">{t("business.hours")}</p>
-                    <div className="mt-2">
-                      <HoursEditor
-                        hours={service.hours}
-                        onChange={(hours) => updateService(service.key, { hours })}
-                        copyOptions={draft.services
-                          .filter((other) => other.key !== service.key && other.hours.provided)
-                          .map((other) => ({ id: other.key, label: t(`categories.${other.category}`) }))}
-                        onCopyFrom={(key) => {
-                          const source = draft.services.find((other) => other.key === key);
-                          if (source) updateService(service.key, { hours: cloneHours(source.hours) });
-                        }}
-                      />
-                    </div>
-                    {errors.hours[service.key] ? (
-                      <p className="mt-2 text-sm text-[#EF4444]" role="alert">
-                        {errors.hours[service.key]}
-                      </p>
-                    ) : null}
-                  </div>
-                  <div className="mt-4">
-                    <p className="text-sm font-medium text-foreground">
-                      {t("branch.service_phone")} <span className="text-xs font-normal text-muted">{t("business.optional")}</span>
-                    </p>
-                    <p className="mt-0.5 text-xs text-muted">{t("branch.service_phone_hint")}</p>
-                    <div className="mt-2">
-                      {service.phones.length === 0 ? (
-                        <button
-                          type="button"
-                          onClick={() => updateService(service.key, { phones: [""] })}
-                          className="text-sm font-medium text-brand"
-                        >
-                          + {t("business.add_phone")}
-                        </button>
-                      ) : (
-                        <PhoneList
-                          phones={service.phones}
-                          onChange={(phones) => updateService(service.key, { phones: phones.filter((phone, i, all) => phone.trim() || all.length === 1) })}
-                          addLabel={t("business.add_phone")}
-                          removeLabel={t("business.remove_phone")}
-                          placeholder="+373 ..."
-                        />
-                      )}
-                    </div>
-                  </div>
-                </>
-              ) : index === 0 ? (
-                <p className="mt-3 text-xs text-muted">{t("branch.shared_on_service")}</p>
-              ) : null}
-            </div>
-          );
+        {notes?.services ? <p className="rounded-xl bg-[#FEF2F2] px-3 py-2 text-sm text-[#B91C1C]">{notes.services}</p> : null}
+        {SERVICE_CHIPS.map((category) => {
+          const note = notes?.[`service:${category}`];
+          return note ? (
+            <p key={category} className="rounded-xl bg-[#FEF2F2] px-3 py-2 text-sm text-[#B91C1C]">
+              {note}
+            </p>
+          ) : null;
         })}
         {errors.services ? (
           <p className="text-sm text-[#EF4444]" role="alert">
             {errors.services}
           </p>
         ) : null}
-        {draft.services.length < CATEGORIES.length ? (
-          <button
-            type="button"
-            onClick={addService}
-            className="inline-flex h-11 items-center justify-center rounded-2xl border border-line bg-surface px-5 text-sm font-medium text-brand hover:border-brand"
-          >
-            + {draft.services.length ? t("branch.add_service") : t("branch.add_first_service")}
-          </button>
-        ) : null}
       </section>
+      ) : null}
 
-      {draft.detailsMode === "shared" ? (
+      {visible("contact") ? (
+      draft.detailsMode === "shared" ? (
         <section className="grid gap-4">
-          <div>
-            <h2 className="text-lg font-medium text-foreground">{t("branch.shared_title")}</h2>
-            <p className="mt-1 text-sm leading-6 text-muted">{t("branch.shared_body")}</p>
-          </div>
+          {stepped ? (
+            <p className="text-sm leading-6 text-muted">{t("branch.shared_body")}</p>
+          ) : (
+            <div>
+              <h2 className="text-lg font-medium text-foreground">{t("branch.shared_title")}</h2>
+              <p className="mt-1 text-sm leading-6 text-muted">{t("branch.shared_body")}</p>
+            </div>
+          )}
+          {notes?.hours ? <p className="rounded-xl bg-[#FEF2F2] px-3 py-2 text-sm text-[#B91C1C]">{notes.hours}</p> : null}
           <div>
             <p className="text-sm font-medium text-foreground">{t("business.hours")}</p>
             <div className="mt-2">
@@ -627,21 +626,77 @@ export function BranchFields({
               />
             </Field>
             <Field label={t("business.instagram")} optional={t("business.optional")} error={errors.instagram} note={notes?.instagram}>
-              <input
-                className={inputClass}
-                value={draft.instagram}
-                placeholder="@name"
-                onChange={(event) => onChange({ ...draft, instagram: event.target.value })}
-              />
+              <InstagramInput value={draft.instagram} onChange={(instagram) => onChange({ ...draft, instagram })} />
             </Field>
           </div>
         </section>
       ) : (
         <section className="grid gap-4">
-          <div>
-            <h2 className="text-lg font-medium text-foreground">{t("branch.contact_title")}</h2>
-            <p className="mt-1 text-sm leading-6 text-muted">{t("branch.contact_body_separate")}</p>
-          </div>
+          {stepped ? (
+            <p className="text-sm leading-6 text-muted">{t("branch.contact_body_separate")}</p>
+          ) : (
+            <div>
+              <h2 className="text-lg font-medium text-foreground">{t("branch.contact_title")}</h2>
+              <p className="mt-1 text-sm leading-6 text-muted">{t("branch.contact_body_separate")}</p>
+            </div>
+          )}
+          {notes?.hours ? <p className="rounded-xl bg-[#FEF2F2] px-3 py-2 text-sm text-[#B91C1C]">{notes.hours}</p> : null}
+          {draft.services.length === 0 ? <p className="text-sm text-muted">{t("branch.no_services")}</p> : null}
+          {draft.services.map((service) => {
+            const locked = service.id ? lockedServiceIds.includes(service.id) : false;
+            return (
+              <div key={service.key} className="rounded-2xl border border-line bg-background p-4 sm:p-5">
+                <p className="text-sm font-medium text-foreground">{t(`categories.${service.category}`)}</p>
+                {locked ? <p className="mt-1 text-xs text-muted">{t("branch.service_live")}</p> : null}
+                <div className="mt-4">
+                  <p className="text-sm font-medium text-foreground">{t("business.hours")}</p>
+                  <div className="mt-2">
+                    <HoursEditor
+                      hours={service.hours}
+                      onChange={(hours) => updateService(service.key, { hours })}
+                      copyOptions={draft.services
+                        .filter((other) => other.key !== service.key && other.hours.provided)
+                        .map((other) => ({ id: other.key, label: t(`categories.${other.category}`) }))}
+                      onCopyFrom={(key) => {
+                        const source = draft.services.find((other) => other.key === key);
+                        if (source) updateService(service.key, { hours: cloneHours(source.hours) });
+                      }}
+                    />
+                  </div>
+                  {errors.hours[service.key] ? (
+                    <p className="mt-2 text-sm text-[#EF4444]" role="alert">
+                      {errors.hours[service.key]}
+                    </p>
+                  ) : null}
+                </div>
+                <div className="mt-4">
+                  <p className="text-sm font-medium text-foreground">
+                    {t("branch.service_phone")} <span className="text-xs font-normal text-muted">{t("business.optional")}</span>
+                  </p>
+                  <p className="mt-0.5 text-xs text-muted">{t("branch.service_phone_hint")}</p>
+                  <div className="mt-2">
+                    {service.phones.length === 0 ? (
+                      <button
+                        type="button"
+                        onClick={() => updateService(service.key, { phones: [""] })}
+                        className="text-sm font-medium text-brand"
+                      >
+                        + {t("business.add_phone")}
+                      </button>
+                    ) : (
+                      <PhoneList
+                        phones={service.phones}
+                        onChange={(phones) => updateService(service.key, { phones: phones.filter((phone, i, all) => phone.trim() || all.length === 1) })}
+                        addLabel={t("business.add_phone")}
+                        removeLabel={t("business.remove_phone")}
+                        placeholder="+373 ..."
+                      />
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
           <div className="grid gap-5 sm:grid-cols-2">
             <Field label={t("business.website")} optional={t("business.optional")} error={errors.website} note={notes?.website}>
               <input
@@ -652,17 +707,13 @@ export function BranchFields({
               />
             </Field>
             <Field label={t("business.instagram")} optional={t("business.optional")} error={errors.instagram} note={notes?.instagram}>
-              <input
-                className={inputClass}
-                value={draft.instagram}
-                placeholder="@name"
-                onChange={(event) => onChange({ ...draft, instagram: event.target.value })}
-              />
+              <InstagramInput value={draft.instagram} onChange={(instagram) => onChange({ ...draft, instagram })} />
             </Field>
           </div>
         </section>
-      )}
-      {draft.services.length > 0 ? (
+      )
+      ) : null}
+      {visible("contact") && draft.services.length > 0 ? (
         <button type="button" onClick={() => setDetailsMode(draft.detailsMode === "shared" ? "separate" : "shared")} className="text-sm font-medium text-brand">
           {draft.detailsMode === "shared" ? t("branch.use_separate") : t("branch.use_shared")}
         </button>

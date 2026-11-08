@@ -5,6 +5,8 @@ import { LogoBadge } from "./business-logo";
 import { HoursSummary } from "./hours-editor";
 import { BranchPillView } from "./status-pill";
 import { businessImages, type Branch, type Business } from "@/lib/business";
+import { InstagramHandle } from "./form-controls";
+import { formatInstagram } from "@/lib/contact";
 import { useI18n } from "@/lib/i18n";
 
 /** Read-only view of a business and its branches, as admins and team members see it. */
@@ -63,7 +65,11 @@ export function BusinessDetails({
             </a>
           </Fact>
         ) : null}
-        {business.instagram ? <Fact label={t("business.instagram")}>{business.instagram}</Fact> : null}
+        {business.instagram ? (
+          <Fact label={t("business.instagram")}>
+            <InstagramHandle value={business.instagram} />
+          </Fact>
+        ) : null}
         <Fact label={t("business.language")}>{t(`languages.${business.locale}`)}</Fact>
         {business.description ? (
           <div className="sm:col-span-2">
@@ -127,7 +133,7 @@ export function BranchSummary({ branch, notes }: { branch: Branch; notes?: Recor
       </div>
       {branch.phone.length || branch.website || branch.instagram ? (
         <p className="mt-3 text-xs text-muted">
-          {[branch.phone.join(", "), branch.website, branch.instagram].filter(Boolean).join(" · ")}
+          {[branch.phone.join(", "), branch.website, formatInstagram(branch.instagram)].filter(Boolean).join(" · ")}
         </p>
       ) : null}
       {branch.photo ? (

@@ -2,10 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ConfirmModal } from "./confirm-modal";
-import { Field, PhoneList, inputClass, textareaClass } from "./form-controls";
+import { Field, InstagramInput, PhoneList, inputClass, textareaClass } from "./form-controls";
 import { apiGet } from "@/lib/api";
 import type { BusinessDetailsBody, NameCheck } from "@/lib/business";
-import { cleanEmail, cleanInstagram, cleanPhone, cleanWebsite } from "@/lib/contact";
+import { cleanEmail, cleanInstagram, cleanPhone, cleanWebsite, isBlankInstagram } from "@/lib/contact";
 import { auth } from "@/lib/firebase";
 import { useI18n } from "@/lib/i18n";
 
@@ -60,8 +60,8 @@ export function cleanDetails(
   const website = websiteText ? cleanWebsite(websiteText) : null;
   if (websiteText && !website) errors.website = t("business.fix_website");
   const instagramText = draft.instagram.trim();
-  const instagram = instagramText ? cleanInstagram(instagramText) : null;
-  if (instagramText && !instagram) errors.instagram = t("business.fix_instagram");
+  const instagram = isBlankInstagram(instagramText) ? null : cleanInstagram(instagramText);
+  if (!isBlankInstagram(instagramText) && !instagram) errors.instagram = t("business.fix_instagram");
   if (Object.keys(errors).length) return { body: null, errors };
   return {
     body: {
@@ -273,11 +273,10 @@ export function BusinessDetailsFields({
           hint={t("business.instagram_hint")}
           note={notes?.instagram}
         >
-          <input
-            className={inputClass}
+          <InstagramInput
             value={draft.instagram}
-            placeholder="@name"
-            onChange={(event) => onChange({ ...draft, instagram: event.target.value })}
+            autoFocus={autoFocus && show?.length === 1}
+            onChange={(instagram) => onChange({ ...draft, instagram })}
           />
         </Field>
       ) : null}

@@ -10,8 +10,11 @@ import {
   branchDraftHasProgress,
   cleanBranch,
   emptyBranchDraft,
+  newBranchDraft,
+  stepForBranchErrors,
   type BranchDraft,
   type BranchErrors,
+  type BranchSection,
 } from "../../../components/branch-fields";
 import { ConfirmModal } from "../../../components/confirm-modal";
 import { Card, dangerButton, primaryButton, secondaryButton } from "../../../components/form-controls";
@@ -29,6 +32,8 @@ import {
 import { auth } from "@/lib/firebase";
 import { errorMessage } from "@/lib/errors";
 import { useI18n } from "@/lib/i18n";
+
+type BranchStep = BranchSection | "photo";
 
 export default function BranchPage() {
   return (
@@ -59,6 +64,11 @@ function BranchEditor() {
   const [canManage, setCanManage] = useState(false);
   const [pendingPhoto, setPendingPhoto] = useState<File | null>(null);
   const [pendingPreview, setPendingPreview] = useState("");
+  const [step, setStep] = useState<BranchStep>("location");
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [step]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -94,7 +104,7 @@ function BranchEditor() {
           return;
         }
         setBranch(row);
-        setDraft(row ? branchDraftFrom(row) : emptyBranchDraft());
+        setDraft(row ? branchDraftFrom(row) : newBranchDraft(found.locations));
         setReady(true);
       } catch (err: unknown) {
         setError(errorMessage(err, t));
@@ -127,6 +137,8 @@ function BranchEditor() {
     if (result.errors) {
       setErrors(result.errors);
       setError(t("branch.fix_form"));
+      const next = stepForBranchErrors(result.errors);
+      if (next) setStep(next);
       return null;
     }
     setErrors({ hours: {} });
@@ -183,6 +195,7 @@ function BranchEditor() {
     const hasPhoto = Boolean(branch?.photo || pendingPhoto);
     if (!hasLogo && !hasPhoto) {
       setError(t("branch.photo_required"));
+      setStep("photo");
       return;
     }
     setPending("send");
@@ -268,6 +281,11 @@ function BranchEditor() {
   const notes = branch ? (branch.status === "rejected" ? branch.field_errors : branch.admin_notes) : undefined;
   const canSend = canManage && (!branch || branch.status === "draft" || branch.status === "rejected");
   const readOnly = !canManage || branch?.status === "pending_review";
+  const steps: BranchStep[] = canManage
+    ? ["location", "services", "contact", "photo"]
+    : ["location", "services", "contact"];
+  const current = steps.includes(step) ? step : "location";
+  const stepIndex = steps.indexOf(current);
 
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-5 py-10">
@@ -295,22 +313,43 @@ function BranchEditor() {
         </div>
       ) : null}
 
-      <div className="mt-8">
+      <nav aria-label={t("branch.steps")} className="mt-8 flex gap-2 overflow-x-auto pb-1">
+        {steps.map((id, index) => {
+          const active = current === id;
+          return (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setStep(id)}
+              className={`shrink-0 rounded-2xl px-4 py-2 text-sm font-medium transition-colors ${
+                active ? "bg-brand text-white" : "border border-line bg-surface text-foreground hover:border-brand"
+              }`}
+            >
+              {index + 1}. {t(`branch.step_${id}`)}
+            </button>
+          );
+        })}
+      </nav>
+
+      <div className="mt-4">
         <fieldset disabled={readOnly} className="grid gap-8 disabled:opacity-70">
-          <Card>
-            <BranchFields
-              draft={draft}
-              onChange={setDraft}
-              errors={errors}
-              notes={notes}
-              lockPlace={lockPlace}
-              lockedServiceIds={lockedServiceIds}
-            />
-          </Card>
+          {current !== "photo" ? (
+            <Card className={current === "services" ? "border-0 bg-transparent p-0 sm:p-0" : ""}>
+              <BranchFields
+                draft={draft}
+                onChange={setDraft}
+                errors={errors}
+                notes={notes}
+                lockPlace={lockPlace}
+                lockedServiceIds={lockedServiceIds}
+                show={[current]}
+              />
+            </Card>
+          ) : null}
         </fieldset>
 
-        {canManage ? (
-          <Card className="mt-6">
+        {canManage && current === "photo" ? (
+          <Card>
             <h2 className="text-lg font-medium text-foreground">{t("branch.photo_title")}</h2>
             <p className="mt-1 text-sm text-muted">
               {businessLogo(business) ? t("branch.photo_body") : t("branch.photo_required_body")}
@@ -360,32 +399,43 @@ function BranchEditor() {
           </p>
         ) : null}
 
-        {!readOnly ? (
-          <div className="sticky bottom-0 mt-8 -mx-5 border-t border-line bg-background/95 px-5 py-4 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:px-0 sm:py-0">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-              {canSend ? (
-                <button type="button" disabled={pending !== null} onClick={() => void onSend()} className={primaryButton}>
-                  {pending === "send" ? t("saving") : branch?.status === "rejected" ? t("branch.resend") : t("branch.send")}
-                </button>
-              ) : null}
+        <div className="sticky bottom-0 mt-8 -mx-5 border-t border-line bg-background/95 px-5 py-4 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:px-0 sm:py-0">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            {stepIndex > 0 ? (
+              <button type="button" onClick={() => setStep(steps[stepIndex - 1])} className={secondaryButton}>
+                {t("branch.step_back")}
+              </button>
+            ) : null}
+            {stepIndex < steps.length - 1 ? (
+              <button type="button" onClick={() => setStep(steps[stepIndex + 1])} className={primaryButton}>
+                {t("branch.step_next")}
+              </button>
+            ) : !readOnly && canSend ? (
+              <button type="button" disabled={pending !== null} onClick={() => void onSend()} className={primaryButton}>
+                {pending === "send" ? t("saving") : branch?.status === "rejected" ? t("branch.resend") : t("branch.send")}
+              </button>
+            ) : null}
+            {!readOnly ? (
               <button
                 type="button"
                 disabled={pending !== null}
                 onClick={() => void onSave()}
-                className={canSend ? secondaryButton : primaryButton}
+                className={canSend || stepIndex < steps.length - 1 ? secondaryButton : primaryButton}
               >
                 {pending === "save" ? t("saving") : canSend ? t("branch.save_draft") : t("admin.save")}
               </button>
-              {saved ? <span className="text-sm text-brand">{t("business.saved")}</span> : null}
-              {branch && (branch.status !== "published" || admin) ? (
-                <button type="button" disabled={pending !== null} onClick={() => setDeleteOpen(true)} className={`${dangerButton} sm:ms-auto`}>
-                  {t("dashboard.delete")}
-                </button>
-              ) : null}
-            </div>
-            {canSend ? <p className="mt-3 text-xs leading-5 text-muted">{t("branch.send_hint")}</p> : null}
+            ) : null}
+            {saved ? <span className="text-sm text-brand">{t("business.saved")}</span> : null}
+            {!readOnly && branch && (branch.status !== "published" || admin) ? (
+              <button type="button" disabled={pending !== null} onClick={() => setDeleteOpen(true)} className={`${dangerButton} sm:ms-auto`}>
+                {t("dashboard.delete")}
+              </button>
+            ) : null}
           </div>
-        ) : null}
+          {!readOnly && canSend && stepIndex === steps.length - 1 ? (
+            <p className="mt-3 text-xs leading-5 text-muted">{t("branch.send_hint")}</p>
+          ) : null}
+        </div>
       </div>
       <ConfirmModal
         open={deleteOpen}

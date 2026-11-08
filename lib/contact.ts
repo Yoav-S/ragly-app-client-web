@@ -32,6 +32,26 @@ export function cleanWebsite(value: string): string | null {
   return text;
 }
 
+/** True when the field is empty or only the auto-inserted @. */
+export function isBlankInstagram(value: string): boolean {
+  const text = value.trim();
+  if (!text || text === "@") return true;
+  const handle = text.replace(/^@+/, "").trim();
+  return !handle && !/instagram\.com/i.test(text);
+}
+
+/** Always show a handle with @ so it reads as Instagram. */
+export function formatInstagram(value: string | null | undefined): string {
+  if (!value?.trim()) return "";
+  return cleanInstagram(value) ?? (value.trim().startsWith("@") ? value.trim() : `@${value.trim()}`);
+}
+
+export function instagramProfileUrl(value: string | null | undefined): string | null {
+  const handle = formatInstagram(value).replace(/^@/, "");
+  if (!handle) return null;
+  return `https://instagram.com/${handle}`;
+}
+
 export function cleanInstagram(value: string): string | null {
   let text = value.trim();
   if (!text) return null;

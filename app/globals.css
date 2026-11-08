@@ -25,6 +25,12 @@ body {
   font-family: var(--font-sans), sans-serif;
 }
 
+/* Leaflet panes use high z-index; keep them inside the map, not over the page. */
+.leaflet-container {
+  z-index: 0;
+  isolation: isolate;
+}
+
 .fade-in {
   opacity: 0;
   transform: translateY(12px);
