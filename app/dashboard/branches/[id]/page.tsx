@@ -17,7 +17,7 @@ import {
   type BranchSection,
 } from "../../../components/branch-fields";
 import { ConfirmModal } from "../../../components/confirm-modal";
-import { Card, dangerButton, primaryButton, secondaryButton } from "../../../components/form-controls";
+import { Card, secondaryButton } from "../../../components/form-controls";
 import { BranchPillView } from "../../../components/status-pill";
 import { ApiError, apiDelete, apiGet, apiPatch, apiPost, apiUpload } from "@/lib/api";
 import {
@@ -334,7 +334,7 @@ function BranchEditor() {
       <div className="mt-4">
         <fieldset disabled={readOnly} className="grid gap-8 disabled:opacity-70">
           {current !== "photo" ? (
-            <Card className={current === "services" ? "border-0 bg-transparent p-0 sm:p-0" : ""}>
+            <Card>
               <BranchFields
                 draft={draft}
                 onChange={setDraft}
@@ -400,34 +400,49 @@ function BranchEditor() {
         ) : null}
 
         <div className="sticky bottom-0 mt-8 -mx-5 border-t border-line bg-background/95 px-5 py-4 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:px-0 sm:py-0">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            {stepIndex > 0 ? (
-              <button type="button" onClick={() => setStep(steps[stepIndex - 1])} className={secondaryButton}>
-                {t("branch.step_back")}
-              </button>
-            ) : null}
-            {stepIndex < steps.length - 1 ? (
-              <button type="button" onClick={() => setStep(steps[stepIndex + 1])} className={primaryButton}>
-                {t("branch.step_next")}
-              </button>
-            ) : !readOnly && canSend ? (
-              <button type="button" disabled={pending !== null} onClick={() => void onSend()} className={primaryButton}>
-                {pending === "send" ? t("saving") : branch?.status === "rejected" ? t("branch.resend") : t("branch.send")}
-              </button>
-            ) : null}
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
+            <div className="flex items-center gap-2">
+              {stepIndex > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => setStep(steps[stepIndex - 1])}
+                  className="inline-flex h-9 items-center rounded-full border border-line bg-surface px-3.5 text-sm text-foreground hover:border-brand"
+                >
+                  ← {t("branch.step_back")}
+                </button>
+              ) : null}
+              {stepIndex < steps.length - 1 ? (
+                <button
+                  type="button"
+                  onClick={() => setStep(steps[stepIndex + 1])}
+                  className="inline-flex h-9 items-center rounded-full bg-brand px-3.5 text-sm text-white hover:bg-[#003a35]"
+                >
+                  {t("branch.step_next")} →
+                </button>
+              ) : !readOnly && canSend ? (
+                <button
+                  type="button"
+                  disabled={pending !== null}
+                  onClick={() => void onSend()}
+                  className="inline-flex h-9 items-center rounded-full bg-brand px-3.5 text-sm text-white hover:bg-[#003a35] disabled:cursor-not-allowed disabled:bg-[#8DB0AA]"
+                >
+                  {pending === "send" ? t("saving") : branch?.status === "rejected" ? t("branch.resend") : t("branch.send")}
+                </button>
+              ) : null}
+            </div>
             {!readOnly ? (
               <button
                 type="button"
                 disabled={pending !== null}
                 onClick={() => void onSave()}
-                className={canSend || stepIndex < steps.length - 1 ? secondaryButton : primaryButton}
+                className="text-sm text-muted hover:text-brand disabled:cursor-not-allowed"
               >
                 {pending === "save" ? t("saving") : canSend ? t("branch.save_draft") : t("admin.save")}
               </button>
             ) : null}
             {saved ? <span className="text-sm text-brand">{t("business.saved")}</span> : null}
             {!readOnly && branch && (branch.status !== "published" || admin) ? (
-              <button type="button" disabled={pending !== null} onClick={() => setDeleteOpen(true)} className={`${dangerButton} sm:ms-auto`}>
+              <button type="button" disabled={pending !== null} onClick={() => setDeleteOpen(true)} className="ms-auto text-sm text-[#EF4444] hover:underline disabled:cursor-not-allowed">
                 {t("dashboard.delete")}
               </button>
             ) : null}

@@ -530,8 +530,19 @@ export function BranchFields({
       ) : null}
 
       {visible("services") ? (
-      <section className={`flex w-full flex-col items-start gap-4 ${stepped ? "" : "rounded-2xl bg-background p-4 sm:p-5"}`}>
-        <h2 className="text-[24px] font-normal leading-[29px] text-black">{t("branch.services")}</h2>
+      <section className="flex w-full flex-col items-start gap-4">
+        {stepped ? (
+          <p className="text-sm leading-6 text-muted">
+            {draft.detailsMode === "separate" ? t("branch.services_body_separate") : t("branch.services_body")}
+          </p>
+        ) : (
+          <div>
+            <h2 className="text-lg font-medium text-foreground">{t("branch.services")}</h2>
+            <p className="mt-1 text-sm leading-6 text-muted">
+              {draft.detailsMode === "separate" ? t("branch.services_body_separate") : t("branch.services_body")}
+            </p>
+          </div>
+        )}
         <div
           role="group"
           aria-label={t("branch.services")}
@@ -548,7 +559,7 @@ export function BranchFields({
                 aria-pressed={selected}
                 onClick={() => toggleCategory(category)}
                 className={`inline-flex h-[35px] shrink-0 items-center justify-center rounded-xl px-2.5 text-xs leading-[15px] font-normal whitespace-nowrap ${
-                  selected ? "bg-brand text-[#F6F7F9]" : "bg-white text-black"
+                  selected ? "bg-brand text-[#F6F7F9]" : "bg-background text-black"
                 } ${locked ? "cursor-not-allowed" : ""}`}
               >
                 {t(`categories.${category}`)}
